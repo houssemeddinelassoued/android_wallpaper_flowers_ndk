@@ -1,0 +1,4 @@
+<wallpaper xmlns:android="http://schemas.android.com/apk/res/android"
+	android:description="@string/description" android:author="@string/author"
+	android:thumbnail="@drawable/ic_thumbnail"
+	android:settingsActivity="fi.harism.wallpaper.flowers.prefs.FlowerPreferenceActivity" />

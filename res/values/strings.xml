@@ -1,0 +1,52 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+
+    <!-- General strings -->
+    <string name="app_name">Peppy Flowers</string>
+    <string name="preferences_name">Peppy Flowers Preferences</string>
+    <string name="author">harism</string>
+    <string name="description">Peppy Flowers, live OpenGL 2.0 ES wallpaper.</string>
+
+    <!-- Error strings -->
+    <string name="error_shader_compiler">Peppy Flowers error; GLSL shader compiler not supported.</string>
+
+    <!-- Layout strings -->
+    <string name="preference_color_red">R</string>
+    <string name="preference_color_green">G</string>
+    <string name="preference_color_blue">B</string>
+    <string name="preference_color_alpha">A</string>
+
+    <!-- Preference strings -->
+    <string name="general_title">General</string>
+    <string name="general_flower_count_title">Flower Count</string>
+    <string name="general_flower_count_summary">Select number of flower ornaments</string>
+    <string name="general_zoom_title">Zoom Level</string>
+    <string name="general_zoom_summary">Adjust flowers zoom value</string>
+    <string name="general_branch_propability_title">Branch Propability</string>
+    <string name="general_branch_propability_summary">Adjusts propability on how often a branch is generated</string>
+    <string name="general_spline_quality_title">Spline Quality</string>
+    <string name="general_spline_quality_summary">Adjust value on how many lines are used to render one spline</string>
+    <string name="colors_title">Colors</string>
+    <string name="colors_scheme_title">Color Scheme</string>
+    <string name="colors_scheme_summary">Select predefined color scheme or custom to create your own</string>
+    <string name="colors_flower_1_title">Flower Color 1</string>
+    <string name="colors_flower_1_summary">Select first flower color</string>
+    <string name="colors_flower_2_title">Flower Color 2</string>
+    <string name="colors_flower_2_summary">Select second flower color</string>
+    <string name="colors_bg_top_title">Background Top</string>
+    <string name="colors_bg_top_summary">Select background gradient color</string>
+    <string name="colors_bg_bottom_title">Background Bottom</string>
+    <string name="colors_bg_bottom_summary">Select background gradient color</string>
+
+    <!-- Preference key values -->
+    <string name="key_general_flower_count">key_general_flower_count</string>
+    <string name="key_general_zoom">key_general_zoom</string>
+    <string name="key_general_branch_propability">key_general_branch_propability</string>
+    <string name="key_general_spline_quality">key_general_spline_quality</string>
+    <string name="key_colors_scheme">key_colors_scheme</string>
+    <string name="key_colors_bg_top">key_colors_bg_top</string>
+    <string name="key_colors_bg_bottom">key_colors_bg_bottom</string>
+    <string name="key_colors_flower_1">key_colors_flower_1</string>
+    <string name="key_colors_flower_2">key_colors_flower_2</string>
+
+</resources>

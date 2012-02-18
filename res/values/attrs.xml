@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+
+    <string-array name="general_flower_count_entries">
+        <item>1</item>
+        <item>2</item>
+    </string-array>
+    <string-array name="general_flower_count_values">
+        <item>1</item>
+        <item>2</item>
+    </string-array>
+    <string-array name="colors_scheme_entries">
+        <item>Summer</item>
+        <item>Autumn</item>
+        <item>Winter</item>
+        <item>Spring</item>
+        <item>Custom</item>
+    </string-array>
+    <string-array name="colors_scheme_values">
+        <item>1</item>
+        <item>2</item>
+        <item>3</item>
+        <item>4</item>
+        <item>0</item>
+    </string-array>
+
+</resources>
