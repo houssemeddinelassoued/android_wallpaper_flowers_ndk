@@ -16,18 +16,22 @@
 
 package fi.harism.wallpaper.flowersndk;
 
-import android.content.Context;
 import android.content.SharedPreferences;
-import android.opengl.GLSurfaceView;
 import android.preference.PreferenceManager;
 import android.service.wallpaper.WallpaperService;
+import android.util.Log;
 import android.view.SurfaceHolder;
-import fi.harism.wallpaper.flowersndk.R;
 
 /**
  * Wallpaper entry point.
  */
 public final class FlowerService extends WallpaperService {
+	
+	static {
+		System.loadLibrary("flowers-jni");
+	}
+	
+	public native int glInit();
 
 	@Override
 	public Engine onCreateEngine() {
@@ -53,6 +57,9 @@ public final class FlowerService extends WallpaperService {
 			mPreferences = PreferenceManager
 					.getDefaultSharedPreferences(FlowerService.this);
 			mPreferences.registerOnSharedPreferenceChangeListener(this);
+			
+			int retVal = glInit();
+			Log.d("FLOWERS_JAVA", "glInit() = " + retVal);
 		}
 
 		@Override
