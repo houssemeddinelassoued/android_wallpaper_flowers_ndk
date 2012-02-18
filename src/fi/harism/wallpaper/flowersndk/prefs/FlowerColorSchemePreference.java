@@ -14,7 +14,7 @@
    limitations under the License.
  */
 
-package fi.harism.wallpaper.flowers.prefs;
+package fi.harism.wallpaper.flowersndk.prefs;
 
 import android.content.Context;
 import android.preference.ListPreference;

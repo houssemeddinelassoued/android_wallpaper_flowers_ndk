@@ -2,10 +2,10 @@
 <resources>
 
     <!-- General strings -->
-    <string name="app_name">Peppy Flowers</string>
+    <string name="app_name">Peppy Flowers NDK</string>
     <string name="preferences_name">Peppy Flowers Preferences</string>
     <string name="author">harism</string>
-    <string name="description">Peppy Flowers, live OpenGL 2.0 ES wallpaper.</string>
+    <string name="description">Peppy Flowers NDK, live OpenGL 2.0 ES wallpaper.</string>
 
     <!-- Error strings -->
     <string name="error_shader_compiler">Peppy Flowers error; GLSL shader compiler not supported.</string>

@@ -14,12 +14,12 @@
    limitations under the License.
  */
 
-package fi.harism.wallpaper.flowers.prefs;
+package fi.harism.wallpaper.flowersndk.prefs;
 
 import android.content.Context;
 import android.util.AttributeSet;
 import android.view.View;
-import fi.harism.wallpaper.flowers.R;
+import fi.harism.wallpaper.flowersndk.R;
 
 /**
  * RGB color chooser dialog preference. Same as RGBA color chooser with the

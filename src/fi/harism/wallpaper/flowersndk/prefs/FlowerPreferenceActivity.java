@@ -14,11 +14,11 @@
    limitations under the License.
  */
 
-package fi.harism.wallpaper.flowers.prefs;
+package fi.harism.wallpaper.flowersndk.prefs;
 
 import android.os.Bundle;
 import android.preference.PreferenceActivity;
-import fi.harism.wallpaper.flowers.R;
+import fi.harism.wallpaper.flowersndk.R;
 
 /**
  * Main entry point for preferences.
