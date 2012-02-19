@@ -20,18 +20,27 @@ import android.content.SharedPreferences;
 import android.preference.PreferenceManager;
 import android.service.wallpaper.WallpaperService;
 import android.util.Log;
+import android.view.Surface;
 import android.view.SurfaceHolder;
 
 /**
  * Wallpaper entry point.
  */
 public final class FlowerService extends WallpaperService {
-	
+
 	static {
 		System.loadLibrary("flowers-jni");
 	}
-	
-	public native int glInit();
+
+	public native boolean glInit();
+
+	public native void glDestroy();
+
+	public native void glStart(Surface surface);
+
+	public native void glStop();
+
+	public native void glSetSize(int width, int height);
 
 	@Override
 	public Engine onCreateEngine() {
@@ -45,6 +54,7 @@ public final class FlowerService extends WallpaperService {
 			SharedPreferences.OnSharedPreferenceChangeListener {
 
 		private SharedPreferences mPreferences;
+		private int mWidth, mHeight;
 
 		@Override
 		public void onCreate(SurfaceHolder surfaceHolder) {
@@ -57,14 +67,16 @@ public final class FlowerService extends WallpaperService {
 			mPreferences = PreferenceManager
 					.getDefaultSharedPreferences(FlowerService.this);
 			mPreferences.registerOnSharedPreferenceChangeListener(this);
-			
-			int retVal = glInit();
-			Log.d("FLOWERS_JAVA", "glInit() = " + retVal);
+
+			if (!glInit()) {
+				Log.d("FLOWERS_JAVA", "glCreate() failed");
+			}
 		}
 
 		@Override
 		public void onDestroy() {
 			super.onDestroy();
+			glDestroy();
 			mPreferences.unregisterOnSharedPreferenceChangeListener(this);
 			mPreferences = null;
 		}
@@ -86,8 +98,29 @@ public final class FlowerService extends WallpaperService {
 		public void onVisibilityChanged(boolean visible) {
 			super.onVisibilityChanged(visible);
 			if (visible) {
+				glStart(getSurfaceHolder().getSurface());
+				glSetSize(mWidth, mHeight);
 			} else {
+				glStop();
 			}
+		}
+
+		@Override
+		public void onSurfaceChanged(SurfaceHolder holder, int format,
+				int width, int height) {
+			mWidth = width;
+			mHeight = height;
+			glSetSize(width, height);
+		}
+
+		@Override
+		public void onSurfaceCreated(SurfaceHolder holder) {
+			glStart(holder.getSurface());
+		}
+
+		@Override
+		public void onSurfaceDestroyed(SurfaceHolder holder) {
+			glStop();
 		}
 
 	}
