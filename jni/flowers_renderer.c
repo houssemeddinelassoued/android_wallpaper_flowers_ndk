@@ -1,6 +1,6 @@
 #include <stdlib.h>
 #include <GLES2/gl2.h>
-#include "flowers.h"
+#include "flowers_renderer.h"
 
 void flowers_OnRenderFrame() {
 	GLclampf r = (rand() % 256) / 255.0;

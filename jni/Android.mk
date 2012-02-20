@@ -5,7 +5,6 @@ include $(CLEAR_VARS)
 LOCAL_MODULE    := libflowers-jni
 
 LOCAL_SRC_FILES := flowers_main.c \
-                   flowers_configchooser.c \
                    flowers_renderer.c \
                    gl_thread.c
 

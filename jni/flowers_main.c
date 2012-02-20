@@ -1,8 +1,9 @@
-#include <jni.h>
 #include <stdlib.h>
+#include <jni.h>
 #include <android/native_window_jni.h>
+#include <EGL/egl.h>
+#include "flowers_renderer.h"
 #include "gl_thread.h"
-#include "flowers.h"
 
 #define GL_EXTERN(func) Java_fi_harism_wallpaper_flowersndk_FlowerService_ ## func
 
@@ -14,6 +15,33 @@ flowers_main_vars_t VARS;
 
 #define THREAD_FUNCS flowers_thread_funcs
 gl_thread_funcs_t THREAD_FUNCS;
+
+EGLConfig flowers_ChooseConfig(EGLDisplay display, EGLConfig* configArray,
+		int configCount) {
+	int idx;
+	int highestSum = 0;
+	int highestSub = 0;
+	EGLConfig retConfig = NULL;
+	for (idx = 0; idx < configCount; ++idx) {
+		EGLConfig config = configArray[idx];
+		int r = 0, g = 0, b = 0, a = 0, d = 0, s = 0;
+		eglGetConfigAttrib(display, config, EGL_RED_SIZE, &r);
+		eglGetConfigAttrib(display, config, EGL_GREEN_SIZE, &g);
+		eglGetConfigAttrib(display, config, EGL_BLUE_SIZE, &b);
+		eglGetConfigAttrib(display, config, EGL_ALPHA_SIZE, &a);
+		eglGetConfigAttrib(display, config, EGL_DEPTH_SIZE, &d);
+		eglGetConfigAttrib(display, config, EGL_STENCIL_SIZE, &s);
+
+		int sum = r + g + b;
+		int sub = a + d + s;
+		if (sum > highestSum || (sum == highestSum && sub > highestSub)) {
+			retConfig = config;
+			highestSum = sum;
+			highestSub = sub;
+		}
+	}
+	return retConfig;
+}
 
 void GL_EXTERN(flowersConnect(JNIEnv *env)) {
 	if (VARS.hostCount == 0) {
