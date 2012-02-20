@@ -1,4 +1,5 @@
 #include <stdlib.h>
+#include <time.h>
 #include <GLES2/gl2.h>
 
 void flowers_OnRenderFrame() {

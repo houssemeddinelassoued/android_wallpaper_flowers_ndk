@@ -38,7 +38,7 @@ void flowers_OnSurfaceCreated();
 // EGLConfig chooser implementation.
 EGLConfig flowers_ChooseConfig(EGLDisplay display, EGLConfig* configArray,
 		int configCount) {
-	int idx;
+	int idx, sum, sub;
 	int highestSum = 0;
 	int highestSub = 0;
 	EGLConfig retConfig = NULL;
@@ -52,8 +52,8 @@ EGLConfig flowers_ChooseConfig(EGLDisplay display, EGLConfig* configArray,
 		eglGetConfigAttrib(display, config, EGL_DEPTH_SIZE, &d);
 		eglGetConfigAttrib(display, config, EGL_STENCIL_SIZE, &s);
 
-		int sum = r + g + b;
-		int sub = a + d + s;
+		sum = r + g + b;
+		sub = a + d + s;
 
 		// We search for highest RGB depth with lowest A, depth and stencil depth.
 		if (sum > highestSum || (sum == highestSum && sub > highestSub)) {
@@ -65,7 +65,7 @@ EGLConfig flowers_ChooseConfig(EGLDisplay display, EGLConfig* configArray,
 	return retConfig;
 }
 
-void FLOWERS_EXTERN(flowersConnect(JNIEnv *env)) {
+void FLOWERS_EXTERN(flowersConnect(JNIEnv* env)) {
 	// If host count == 0, start rendering thread.
 	// Otherwise we expect it to be running already.
 	if (flowers_hostCount == 0) {
@@ -100,9 +100,8 @@ void FLOWERS_EXTERN(flowersSetPaused(JNIEnv *env, jobject obj, jboolean paused))
 void FLOWERS_EXTERN(flowersSetSurface(JNIEnv *env, jobject obj, jobject surface)) {
 	// Update rendering thread window.
 	if (surface) {
-		// Rendering thread takes ownership of ANativeWindow in a sense
-		// it will call ANativeWindow_release for it once its done
-		// with it.
+		// Rendering thread takes ownership of ANativeWindow in a sense it
+		// will call ANativeWindow_release for it once its done with it.
 		gl_ThreadSetWindow(ANativeWindow_fromSurface(env, surface));
 	} else {
 		gl_ThreadSetWindow(NULL);

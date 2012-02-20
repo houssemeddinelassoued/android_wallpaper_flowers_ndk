@@ -14,7 +14,9 @@
  limitations under the License.
  */
 
+#include <stdlib.h>
 #include <pthread.h>
+#include <unistd.h>
 #include "gl_thread.h"
 #include "log.h"
 
@@ -288,7 +290,7 @@ void gl_ThreadSetPaused(gl_thread_bool_t paused) {
 
 // Sets new native window for creating EGLSurface.
 void gl_ThreadSetWindow(ANativeWindow* window) {
-	LOGD("gl_ThreadSetWindow", "window=%d", window);
+	LOGD("gl_ThreadSetWindow", "window=%d", (int)window);
 
 	// If we have new nativeWin.
 	if (GLOBALS.window != window) {
