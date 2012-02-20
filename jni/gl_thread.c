@@ -20,8 +20,7 @@
 #include "gl_thread.h"
 #include "log.h"
 
-// Global variables for communicating
-// with rendering thread.
+// Global variables for communicating with rendering thread.
 #define GLOBALS gl_thread_globals
 typedef struct {
 	pthread_t thread;
@@ -32,6 +31,7 @@ typedef struct {
 	gl_thread_bool_t threadPause;
 	gl_thread_bool_t threadExit;
 	gl_thread_bool_t windowChanged;
+	gl_thread_bool_t windowSizeChanged;
 
 	ANativeWindow *window;
 	int windowWidth;
@@ -47,16 +47,22 @@ typedef struct {
 	EGLSurface surface;
 } gl_thread_egl_t;
 
+// Initializes EGL context. Uses chooseConfig callback
+// for choosing appropriate EGL configuration.
 gl_thread_bool_t gl_ContextCreate(gl_thread_egl_t *egl,
 		gl_ChooseConfig_t chooseConfig) {
+
+	// First make sure we got a callback.
 	if (chooseConfig == NULL) {
 		return GL_THREAD_FALSE;
 	}
 
+	// Fetch default display.
 	egl->display = eglGetDisplay(EGL_DEFAULT_DISPLAY);
 	if (egl->display == EGL_NO_DISPLAY) {
 		return GL_THREAD_FALSE;
 	}
+	// Try to initialize EGL.
 	if (eglInitialize(egl->display, NULL, NULL) != EGL_TRUE) {
 		return GL_THREAD_FALSE;
 	}
@@ -66,29 +72,36 @@ gl_thread_bool_t gl_ContextCreate(gl_thread_egl_t *egl,
 			4, EGL_ALPHA_SIZE, 0, EGL_DEPTH_SIZE, 0, EGL_STENCIL_SIZE, 0,
 			EGL_NONE };
 
+	// Try to fetch available configuration count.
 	if (eglChooseConfig(egl->display, configAttrs, NULL, 0,
 			&numConfigs) != EGL_TRUE) {
 		return GL_THREAD_FALSE;
 	}
+	// If configuration count <= 0.
 	if (numConfigs <= 0) {
 		return GL_THREAD_FALSE;
 	}
 
+	// Allocate array for holding all configurations.
 	EGLint configsSize = numConfigs;
 	EGLConfig* configs = (EGLConfig*) malloc(configsSize * sizeof(EGLConfig));
+	// Try to get available configurations.
 	if (eglChooseConfig(egl->display, configAttrs, configs, configsSize,
 			&numConfigs) == EGL_FALSE) {
 		free(configs);
 		return GL_THREAD_FALSE;
 	}
 
+	// Ask chooseConfig to pick desired one.
 	egl->config = chooseConfig(egl->display, configs, numConfigs);
 	free(configs);
 
+	// If chooseConfig returned NULL.
 	if (egl->config == NULL) {
 		return GL_THREAD_FALSE;
 	}
 
+	// Finally try to create EGL context for OpenGL ES 2.
 	EGLint contextAttrs[] = { EGL_CONTEXT_CLIENT_VERSION, 2, EGL_NONE };
 	egl->context = eglCreateContext(egl->display, egl->config, EGL_NO_CONTEXT,
 			contextAttrs);
@@ -96,21 +109,26 @@ gl_thread_bool_t gl_ContextCreate(gl_thread_egl_t *egl,
 		return GL_THREAD_FALSE;
 	}
 
+	// Since we created context, there's no EGL surface.
 	egl->surface = EGL_NO_SURFACE;
 	return GL_THREAD_TRUE;
 }
 
+// Releases EGL context.
 void gl_ContextRelease(gl_thread_egl_t *egl) {
+	// If we have a context, release it.
 	if (egl->context != EGL_NO_CONTEXT) {
 		if (eglDestroyContext(egl->display, egl->context) != EGL_TRUE) {
 		}
 		egl->context = EGL_NO_CONTEXT;
 	}
+	// If we have a display, release it.
 	if (egl->display != EGL_NO_DISPLAY) {
 		if (eglTerminate(egl->display) != EGL_TRUE) {
 		}
 		egl->display = EGL_NO_DISPLAY;
 	}
+	// After releasing context EGL surface becomes obsolete.
 	egl->surface = EGL_NO_SURFACE;
 }
 
@@ -129,7 +147,7 @@ gl_thread_bool_t gl_SurfaceCreate(gl_thread_egl_t *egl, ANativeWindow *window) {
 	// If we have a surface, release it first.
 	if (egl->surface != EGL_NO_SURFACE) {
 		eglMakeCurrent(egl->display, EGL_NO_SURFACE, EGL_NO_SURFACE,
-				EGL_NO_DISPLAY);
+				EGL_NO_CONTEXT);
 		eglDestroySurface(egl->display, egl->surface);
 	}
 
@@ -161,83 +179,98 @@ void gl_SurfaceRelease(gl_thread_egl_t *egl) {
 	egl->surface = EGL_NO_SURFACE;
 }
 
+// Main rendering thread function.
 void* gl_Thread(void *startParams) {
 	gl_thread_funcs_t *funcs = startParams;
 	gl_thread_egl_t egl;
 
-	gl_thread_bool_t createContext = GL_THREAD_TRUE;
-	gl_thread_bool_t createSurface = GL_THREAD_TRUE;
+	int width = 0, height = 0;
+	gl_thread_bool_t hasContext = GL_THREAD_FALSE;
+	gl_thread_bool_t hasSurface = GL_THREAD_FALSE;
+	gl_thread_bool_t notifySurfaceCreated = GL_THREAD_FALSE;
+	gl_thread_bool_t notifySurfaceChanged = GL_THREAD_FALSE;
 
+	// Loop until thread is asked to exit.
 	while (!GLOBALS.threadExit) {
 
-		if (GLOBALS.threadPause) {
-			gl_SurfaceRelease(&egl);
-			gl_ContextRelease(&egl);
-			createContext = GL_THREAD_TRUE;
-		}
+		// Acquire mutex lock for synchronization.
+		// This prevents changes to be made GLOBALS
+		// in an inappropriate way.
+		pthread_mutex_lock(&GLOBALS.mutex);
 
+		// Wait loop.
 		while (!GLOBALS.threadExit) {
-			if (GLOBALS.windowChanged && GLOBALS.window == NULL) {
-				GLOBALS.windowChanged = GL_THREAD_FALSE;
-				gl_SurfaceRelease(&egl);
+			// If we're asked to pause, release EGL context.
+			if (GLOBALS.threadPause && hasContext) {
+				gl_ContextRelease(&egl);
+				hasContext = GL_THREAD_FALSE;
+				hasSurface = GL_THREAD_FALSE;
 			}
-			if ((GLOBALS.threadPause == GL_THREAD_FALSE)
-					&& (GLOBALS.windowWidth > 0 && GLOBALS.windowHeight > 0)) {
+			// If window changed release EGL surface.
+			if (GLOBALS.windowChanged) {
+				GLOBALS.windowChanged = GL_THREAD_FALSE;
+				if (hasSurface) {
+					gl_SurfaceRelease(&egl);
+					hasSurface = GL_THREAD_FALSE;
+				}
+			}
+			// If we're asked to continue, recreate EGL context and surface.
+			if (!GLOBALS.threadPause && !hasContext) {
+				hasContext = gl_ContextCreate(&egl, funcs->chooseConfig);
+			}
+			if (!GLOBALS.threadPause && hasContext && !hasSurface) {
+				hasSurface = gl_SurfaceCreate(&egl, GLOBALS.window);
+				notifySurfaceCreated = hasSurface;
+			}
+			// If there's windowSizeChanged pending
+			// update internal window size.
+			if (GLOBALS.windowSizeChanged) {
+				GLOBALS.windowSizeChanged = GL_THREAD_FALSE;
+				width = GLOBALS.windowWidth;
+				height = GLOBALS.windowHeight;
+				notifySurfaceChanged = GL_THREAD_TRUE;
+			}
+
+			// If we have all the necessary for rendering
+			// exit the wait loop.
+			if (hasContext && hasSurface && width > 0 && height > 0) {
 				break;
 			}
 
 			LOGD("gl_Thread", "wait");
-			pthread_mutex_lock(&GLOBALS.mutex);
+			// Releases mutex and waits for cond to be triggered.
 			pthread_cond_wait(&GLOBALS.cond, &GLOBALS.mutex);
-			pthread_mutex_unlock(&GLOBALS.mutex);
 		}
+		// Release mutex and do rendering.
+		pthread_mutex_unlock(&GLOBALS.mutex);
 
+		// If we exited wait loop for threadExit
+		// exit outer main loop instantly.
 		if (GLOBALS.threadExit) {
 			break;
 		}
 
-		createSurface |= GLOBALS.windowChanged;
-		GLOBALS.windowChanged = GL_THREAD_FALSE;
-
-		if (createContext) {
-			// Create EGL context
-			if (gl_ContextCreate(&egl, funcs->chooseConfig) != GL_THREAD_TRUE) {
-				LOGD("gl_Thread", "gl_ContextCreate failed");
-				gl_ContextRelease(&egl);
-				continue;
-			}
-			createContext = GL_THREAD_FALSE;
-			createSurface = GL_THREAD_TRUE;
-		}
-		if (createSurface) {
-			// Create Surface
-			if (gl_SurfaceCreate(&egl, GLOBALS.window) != GL_THREAD_TRUE) {
-				LOGD("gl_Thread", "gl_SurfaceCreate failed");
-				gl_SurfaceRelease(&egl);
-				gl_ContextRelease(&egl);
-				continue;
-			}
-			// Notify renderer
+		// If new surface was created do notifying.
+		if (notifySurfaceCreated) {
+			notifySurfaceCreated = GL_THREAD_FALSE;
 			funcs->onSurfaceCreated();
-			funcs->onSurfaceChanged(GLOBALS.windowWidth, GLOBALS.windowHeight);
-			createSurface = GL_THREAD_FALSE;
+		}
+		// If surface changed do notifying.
+		if (notifySurfaceChanged) {
+			notifySurfaceChanged = GL_THREAD_FALSE;
+			funcs->onSurfaceChanged(width, height);
 		}
 
-		if (GLOBALS.windowWidth > 0 && GLOBALS.windowHeight > 0) {
-			funcs->onRenderFrame();
-			eglSwapBuffers(egl.display, egl.surface);
-		}
+		// Finally do rendering and swap buffers.
+		funcs->onRenderFrame();
+		eglSwapBuffers(egl.display, egl.surface);
 
-		sleep(1);
+		//sleep(1);
 	}
 
-	gl_SurfaceRelease(&egl);
+	// Once we get out of rendering loop
+	// release EGL context.
 	gl_ContextRelease(&egl);
-
-	if (GLOBALS.window) {
-		ANativeWindow_release(GLOBALS.window);
-		GLOBALS.window = NULL;
-	}
 
 	LOGD("gl_Thread", "exit");
 	return NULL;
@@ -267,11 +300,17 @@ void gl_ThreadDestroy() {
 		// Mark exit flag.
 		GLOBALS.threadExit = GL_THREAD_TRUE;
 		gl_ThreadNotify();
+
 		// Wait until thread has exited.
 		pthread_join(GLOBALS.thread, NULL);
+
 		// Release all VARS data.
 		pthread_cond_destroy(&GLOBALS.cond);
 		pthread_mutex_destroy(&GLOBALS.mutex);
+		// If we're holding a window release it.
+		if (GLOBALS.window) {
+			ANativeWindow_release(GLOBALS.window);
+		}
 		memset(&GLOBALS, 0, sizeof GLOBALS);
 	}
 }
@@ -297,15 +336,18 @@ void gl_ThreadSetWindow(ANativeWindow* window) {
 		// Acquire thread lock.
 		gl_ThreadLock();
 		// If there is old one, release it first.
+		// TODO: I'm a bit uncertain should window be
+		// released only after releasing EGL surface
+		// using it.
 		if (GLOBALS.window) {
 			ANativeWindow_release(GLOBALS.window);
 		}
-		// Store new nativeWin.
+		// Store new nativeWin and mark it changed.
 		GLOBALS.window = window;
-		// Reset window dimensions.
-		GLOBALS.windowWidth = GLOBALS.windowHeight = 0;
-		// Mark window changed flag.
 		GLOBALS.windowChanged = GL_THREAD_TRUE;
+		// Set window size to zero and mark it changed.
+		GLOBALS.windowWidth = GLOBALS.windowHeight = 0;
+		GLOBALS.windowSizeChanged = GL_THREAD_TRUE;
 		// Release thread lock.
 		gl_ThreadUnlock();
 		// Notify thread about changes.
@@ -326,8 +368,8 @@ void gl_ThreadSetWindowSize(int width, int height) {
 		// Store new dimensions.
 		GLOBALS.windowWidth = width;
 		GLOBALS.windowHeight = height;
-		// Mark window has changed.
-		GLOBALS.windowChanged = GL_THREAD_TRUE;
+		// Mark window size has changed.
+		GLOBALS.windowSizeChanged = GL_THREAD_TRUE;
 		// Release thread lock.
 		gl_ThreadUnlock();
 		// Notify thread about changes.
