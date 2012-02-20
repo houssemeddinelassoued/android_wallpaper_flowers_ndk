@@ -27,7 +27,7 @@ typedef struct {
 // Creates a new gl thread. If there is a thread running already it is always
 // stopped before creating a new one. Meaning ultimately that there is exactly
 // one thread running at all times. Thread is initially in paused state.
-void gl_ThreadCreate(gl_thread_funcs_t *threadParams);
+void gl_ThreadCreate(gl_thread_funcs_t *threadFuncs);
 
 // Destroys current thread if there is one. Returns only after thread
 // has exited its execution all resources are freed.
