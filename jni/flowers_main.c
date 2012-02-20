@@ -38,7 +38,7 @@ void flowers_OnSurfaceCreated();
 // EGLConfig chooser implementation.
 EGLConfig flowers_ChooseConfig(EGLDisplay display, EGLConfig* configArray,
 		int configCount) {
-	int idx, sum, sub;
+	int idx;
 	int highestSum = 0;
 	int highestSub = 0;
 	EGLConfig retConfig = NULL;
@@ -52,8 +52,8 @@ EGLConfig flowers_ChooseConfig(EGLDisplay display, EGLConfig* configArray,
 		eglGetConfigAttrib(display, config, EGL_DEPTH_SIZE, &d);
 		eglGetConfigAttrib(display, config, EGL_STENCIL_SIZE, &s);
 
-		sum = r + g + b;
-		sub = a + d + s;
+		int sum = r + g + b;
+		int sub = a + d + s;
 
 		// We search for highest RGB depth with lowest A, depth and stencil depth.
 		if (sum > highestSum || (sum == highestSum && sub > highestSub)) {
@@ -65,6 +65,7 @@ EGLConfig flowers_ChooseConfig(EGLDisplay display, EGLConfig* configArray,
 	return retConfig;
 }
 
+// JNI function for notifying about new host.
 void FLOWERS_EXTERN(flowersConnect(JNIEnv* env)) {
 	// If host count == 0, start rendering thread.
 	// Otherwise we expect it to be running already.
@@ -78,6 +79,8 @@ void FLOWERS_EXTERN(flowersConnect(JNIEnv* env)) {
 	++flowers_hostCount;
 }
 
+// JNI function for notifying implementation about host
+// being destroyed.
 void FLOWERS_EXTERN(flowersDisconnect(JNIEnv *env)) {
 	// If host count == 1, destroy rendering thread.
 	if (flowers_hostCount == 1) {
@@ -88,6 +91,7 @@ void FLOWERS_EXTERN(flowersDisconnect(JNIEnv *env)) {
 	}
 }
 
+// JNI function for modifying render thread paused state.
 void FLOWERS_EXTERN(flowersSetPaused(JNIEnv *env, jobject obj, jboolean paused)) {
 	// Update rendering thread paused state.
 	if (paused == JNI_TRUE) {
@@ -97,6 +101,8 @@ void FLOWERS_EXTERN(flowersSetPaused(JNIEnv *env, jobject obj, jboolean paused))
 	}
 }
 
+// JNI function for handling surface updates and deletion. Passing null to
+// will destroy current surface.
 void FLOWERS_EXTERN(flowersSetSurface(JNIEnv *env, jobject obj, jobject surface)) {
 	// Update rendering thread window.
 	if (surface) {
@@ -108,6 +114,7 @@ void FLOWERS_EXTERN(flowersSetSurface(JNIEnv *env, jobject obj, jobject surface)
 	}
 }
 
+// JNI function for handling surface size changed events.
 void FLOWERS_EXTERN(flowersSetSurfaceSize(JNIEnv *env, jobject obj, jint width, jint height)) {
 	// Update rendering thread window size.
 	gl_ThreadSetWindowSize(width, height);
