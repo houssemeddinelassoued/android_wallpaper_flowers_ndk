@@ -65,12 +65,19 @@ void GL_EXTERN(flowersDisconnect(JNIEnv *env)) {
 }
 
 void GL_EXTERN(flowersSetPaused(JNIEnv *env, jobject obj, jboolean paused)) {
-	gl_ThreadSetPaused(paused == JNI_TRUE ? TRUE : FALSE);
+	if (paused) {
+		gl_ThreadSetPaused(GL_THREAD_TRUE);
+	} else {
+		gl_ThreadSetPaused(GL_THREAD_FALSE);
+	}
 }
 
 void GL_EXTERN(flowersSetSurface(JNIEnv *env, jobject obj, jobject surface)) {
-	gl_ThreadSetWindow(
-			surface != NULL ? ANativeWindow_fromSurface(env, surface) : NULL);
+	if (surface) {
+		gl_ThreadSetWindow(ANativeWindow_fromSurface(env, surface));
+	} else {
+		gl_ThreadSetWindow(NULL);
+	}
 }
 
 void GL_EXTERN(flowersSetSurfaceSize(JNIEnv *env, jobject obj, jint width, jint height)) {
