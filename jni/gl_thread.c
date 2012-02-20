@@ -16,7 +16,6 @@
 
 #include <stdlib.h>
 #include <pthread.h>
-#include <unistd.h>
 #include "gl_thread.h"
 #include "log.h"
 
@@ -264,8 +263,6 @@ void* gl_Thread(void *startParams) {
 		// Finally do rendering and swap buffers.
 		funcs->onRenderFrame();
 		eglSwapBuffers(egl.display, egl.surface);
-
-		//sleep(1);
 	}
 
 	// Once we get out of rendering loop

@@ -1,8 +1,11 @@
 #include <stdlib.h>
 #include <time.h>
 #include <GLES2/gl2.h>
+#include <unistd.h>
 
 void flowers_OnRenderFrame() {
+	sleep(1);
+
 	GLclampf r = (rand() % 256) / 255.0;
 	GLclampf g = (rand() % 256) / 255.0;
 	GLclampf b = (rand() % 256) / 255.0;
