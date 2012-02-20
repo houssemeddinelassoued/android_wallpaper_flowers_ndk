@@ -1,24 +1,41 @@
+/*
+ Copyright 2012 Harri Smått
+
+ Licensed under the Apache License, Version 2.0 (the "License");
+ you may not use this file except in compliance with the License.
+ You may obtain a copy of the License at
+
+ http://www.apache.org/licenses/LICENSE-2.0
+
+ Unless required by applicable law or agreed to in writing, software
+ distributed under the License is distributed on an "AS IS" BASIS,
+ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ See the License for the specific language governing permissions and
+ limitations under the License.
+ */
+
 #include <pthread.h>
 #include "gl_thread.h"
 #include "log.h"
 
-// Global variables structure for communicating
+// Global variables for communicating
 // with rendering thread.
 #define GLOBALS gl_thread_globals
 typedef struct {
-	pthread_t pThread;
-	pthread_mutex_t pMutex;
-	pthread_cond_t pCond;
+	pthread_t thread;
+	pthread_mutex_t mutex;
+	pthread_cond_t cond;
 
-	gl_thread_bool_t bThreadPause;
-	gl_thread_bool_t bThreadExit;
-	gl_thread_bool_t bWindowChanged;
+	gl_thread_bool_t threadCreated;
+	gl_thread_bool_t threadPause;
+	gl_thread_bool_t threadExit;
+	gl_thread_bool_t windowChanged;
 
 	ANativeWindow *window;
 	int windowWidth;
 	int windowHeight;
 } gl_thread_global_t;
-gl_thread_global_t *GLOBALS;
+gl_thread_global_t GLOBALS;
 
 // EGL structure for storing EGL related variables.
 typedef struct {
@@ -144,47 +161,47 @@ void gl_SurfaceRelease(gl_thread_egl_t *egl) {
 
 void* gl_Thread(void *startParams) {
 	gl_thread_funcs_t *funcs = startParams;
-	gl_thread_egl_t *egl = calloc(1, sizeof *egl);
+	gl_thread_egl_t egl;
 
 	gl_thread_bool_t createContext = GL_THREAD_TRUE;
 	gl_thread_bool_t createSurface = GL_THREAD_TRUE;
 
-	while (!GLOBALS->bThreadExit) {
+	while (!GLOBALS.threadExit) {
 
-		if (GLOBALS->bThreadPause) {
-			gl_SurfaceRelease(egl);
-			gl_ContextRelease(egl);
+		if (GLOBALS.threadPause) {
+			gl_SurfaceRelease(&egl);
+			gl_ContextRelease(&egl);
 			createContext = GL_THREAD_TRUE;
 		}
 
-		while (!GLOBALS->bThreadExit) {
-			if (GLOBALS->bWindowChanged && GLOBALS->window == NULL) {
-				GLOBALS->bWindowChanged = GL_THREAD_FALSE;
-				gl_SurfaceRelease(egl);
+		while (!GLOBALS.threadExit) {
+			if (GLOBALS.windowChanged && GLOBALS.window == NULL) {
+				GLOBALS.windowChanged = GL_THREAD_FALSE;
+				gl_SurfaceRelease(&egl);
 			}
-			if ((GLOBALS->bThreadPause == GL_THREAD_FALSE)
-					&& (GLOBALS->windowWidth > 0 && GLOBALS->windowHeight > 0)) {
+			if ((GLOBALS.threadPause == GL_THREAD_FALSE)
+					&& (GLOBALS.windowWidth > 0 && GLOBALS.windowHeight > 0)) {
 				break;
 			}
 
 			LOGD("gl_Thread", "wait");
-			pthread_mutex_lock(&GLOBALS->pMutex);
-			pthread_cond_wait(&GLOBALS->pCond, &GLOBALS->pMutex);
-			pthread_mutex_unlock(&GLOBALS->pMutex);
+			pthread_mutex_lock(&GLOBALS.mutex);
+			pthread_cond_wait(&GLOBALS.cond, &GLOBALS.mutex);
+			pthread_mutex_unlock(&GLOBALS.mutex);
 		}
 
-		if (GLOBALS->bThreadExit) {
+		if (GLOBALS.threadExit) {
 			break;
 		}
 
-		createSurface |= GLOBALS->bWindowChanged;
-		GLOBALS->bWindowChanged = GL_THREAD_FALSE;
+		createSurface |= GLOBALS.windowChanged;
+		GLOBALS.windowChanged = GL_THREAD_FALSE;
 
 		if (createContext) {
 			// Create EGL context
-			if (gl_ContextCreate(egl, funcs->chooseConfig) != GL_THREAD_TRUE) {
+			if (gl_ContextCreate(&egl, funcs->chooseConfig) != GL_THREAD_TRUE) {
 				LOGD("gl_Thread", "gl_ContextCreate failed");
-				gl_ContextRelease(egl);
+				gl_ContextRelease(&egl);
 				continue;
 			}
 			createContext = GL_THREAD_FALSE;
@@ -192,34 +209,32 @@ void* gl_Thread(void *startParams) {
 		}
 		if (createSurface) {
 			// Create Surface
-			if (gl_SurfaceCreate(egl, GLOBALS->window) != GL_THREAD_TRUE) {
+			if (gl_SurfaceCreate(&egl, GLOBALS.window) != GL_THREAD_TRUE) {
 				LOGD("gl_Thread", "gl_SurfaceCreate failed");
-				gl_SurfaceRelease(egl);
-				gl_ContextRelease(egl);
+				gl_SurfaceRelease(&egl);
+				gl_ContextRelease(&egl);
 				continue;
 			}
 			// Notify renderer
 			funcs->onSurfaceCreated();
-			funcs->onSurfaceChanged(GLOBALS->windowWidth,
-					GLOBALS->windowHeight);
+			funcs->onSurfaceChanged(GLOBALS.windowWidth, GLOBALS.windowHeight);
 			createSurface = GL_THREAD_FALSE;
 		}
 
-		if (GLOBALS->windowWidth > 0 && GLOBALS->windowHeight > 0) {
+		if (GLOBALS.windowWidth > 0 && GLOBALS.windowHeight > 0) {
 			funcs->onRenderFrame();
-			eglSwapBuffers(egl->display, egl->surface);
+			eglSwapBuffers(egl.display, egl.surface);
 		}
 
 		sleep(1);
 	}
 
-	gl_SurfaceRelease(egl);
-	gl_ContextRelease(egl);
-	free(egl);
+	gl_SurfaceRelease(&egl);
+	gl_ContextRelease(&egl);
 
-	if (GLOBALS->window) {
-		ANativeWindow_release(GLOBALS->window);
-		GLOBALS->window = NULL;
+	if (GLOBALS.window) {
+		ANativeWindow_release(GLOBALS.window);
+		GLOBALS.window = NULL;
 	}
 
 	LOGD("gl_Thread", "exit");
@@ -227,35 +242,35 @@ void* gl_Thread(void *startParams) {
 }
 
 void gl_ThreadNotify() {
-	pthread_cond_signal(&GLOBALS->pCond);
+	pthread_cond_signal(&GLOBALS.cond);
 }
 
 void gl_ThreadCreate(gl_thread_funcs_t *threadFuncs) {
 	// If there's thread running, stop it.
-	if (GLOBALS) {
+	if (GLOBALS.threadCreated) {
 		gl_ThreadDestroy();
 	}
 	// Initialize new thread.
-	GLOBALS = calloc(1, sizeof *GLOBALS);
-	GLOBALS->bThreadPause = GL_THREAD_TRUE;
-	pthread_cond_init(&GLOBALS->pCond, NULL);
-	pthread_mutex_init(&GLOBALS->pMutex, NULL);
-	pthread_create(&GLOBALS->pThread, NULL, gl_Thread, threadFuncs);
+	// TODO: It might be a good idea to add some error checking.
+	GLOBALS.threadCreated = GL_THREAD_TRUE;
+	GLOBALS.threadPause = GL_THREAD_TRUE;
+	pthread_cond_init(&GLOBALS.cond, NULL);
+	pthread_mutex_init(&GLOBALS.mutex, NULL);
+	pthread_create(&GLOBALS.thread, NULL, gl_Thread, threadFuncs);
 }
 
 void gl_ThreadDestroy() {
 	// If there's thread running.
-	if (GLOBALS) {
+	if (GLOBALS.threadCreated) {
 		// Mark exit flag.
-		GLOBALS->bThreadExit = GL_THREAD_TRUE;
+		GLOBALS.threadExit = GL_THREAD_TRUE;
 		gl_ThreadNotify();
 		// Wait until thread has exited.
-		pthread_join(GLOBALS->pThread, NULL);
+		pthread_join(GLOBALS.thread, NULL);
 		// Release all VARS data.
-		pthread_cond_destroy(&GLOBALS->pCond);
-		pthread_mutex_destroy(&GLOBALS->pMutex);
-		free(GLOBALS);
-		GLOBALS = NULL;
+		pthread_cond_destroy(&GLOBALS.cond);
+		pthread_mutex_destroy(&GLOBALS.mutex);
+		memset(&GLOBALS, 0, sizeof GLOBALS);
 	}
 }
 
@@ -264,7 +279,7 @@ void gl_ThreadSetPaused(gl_thread_bool_t paused) {
 	// Acquire thread lock.
 	gl_ThreadLock();
 	// Set thread paused flag.
-	GLOBALS->bThreadPause = paused;
+	GLOBALS.threadPause = paused;
 	// Release thread lock.
 	gl_ThreadUnlock();
 	// Notify thread about changes.
@@ -276,19 +291,19 @@ void gl_ThreadSetWindow(ANativeWindow* window) {
 	LOGD("gl_ThreadSetWindow", "window=%d", window);
 
 	// If we have new nativeWin.
-	if (GLOBALS->window != window) {
+	if (GLOBALS.window != window) {
 		// Acquire thread lock.
 		gl_ThreadLock();
 		// If there is old one, release it first.
-		if (GLOBALS->window) {
-			ANativeWindow_release(GLOBALS->window);
+		if (GLOBALS.window) {
+			ANativeWindow_release(GLOBALS.window);
 		}
 		// Store new nativeWin.
-		GLOBALS->window = window;
+		GLOBALS.window = window;
 		// Reset window dimensions.
-		GLOBALS->windowWidth = GLOBALS->windowHeight = 0;
+		GLOBALS.windowWidth = GLOBALS.windowHeight = 0;
 		// Mark window changed flag.
-		GLOBALS->bWindowChanged = GL_THREAD_TRUE;
+		GLOBALS.windowChanged = GL_THREAD_TRUE;
 		// Release thread lock.
 		gl_ThreadUnlock();
 		// Notify thread about changes.
@@ -303,14 +318,14 @@ void gl_ThreadSetWindow(ANativeWindow* window) {
 
 void gl_ThreadSetWindowSize(int width, int height) {
 	LOGD("gl_ThreadSetWindowSize", "w=%d h=%d", width, height);
-	if (GLOBALS->windowWidth != width || GLOBALS->windowHeight != height) {
+	if (GLOBALS.windowWidth != width || GLOBALS.windowHeight != height) {
 		// Acquire thread lock.
 		gl_ThreadLock();
 		// Store new dimensions.
-		GLOBALS->windowWidth = width;
-		GLOBALS->windowHeight = height;
+		GLOBALS.windowWidth = width;
+		GLOBALS.windowHeight = height;
 		// Mark window has changed.
-		GLOBALS->bWindowChanged = GL_THREAD_TRUE;
+		GLOBALS.windowChanged = GL_THREAD_TRUE;
 		// Release thread lock.
 		gl_ThreadUnlock();
 		// Notify thread about changes.
@@ -319,9 +334,9 @@ void gl_ThreadSetWindowSize(int width, int height) {
 }
 
 void gl_ThreadLock() {
-	pthread_mutex_lock(&GLOBALS->pMutex);
+	pthread_mutex_lock(&GLOBALS.mutex);
 }
 
 void gl_ThreadUnlock() {
-	pthread_mutex_unlock(&GLOBALS->pMutex);
+	pthread_mutex_unlock(&GLOBALS.mutex);
 }
