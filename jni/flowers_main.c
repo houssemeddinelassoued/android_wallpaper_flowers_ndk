@@ -2,10 +2,9 @@
 #include <jni.h>
 #include <android/native_window_jni.h>
 #include <EGL/egl.h>
-#include "flowers_renderer.h"
 #include "gl_thread.h"
 
-#define GL_EXTERN(func) Java_fi_harism_wallpaper_flowersndk_FlowerService_ ## func
+#define FLOWERS_EXTERN(func) Java_fi_harism_wallpaper_flowersndk_FlowerService_ ## func
 
 #define VARS flowers_main_vars
 typedef struct {
@@ -15,6 +14,10 @@ flowers_main_vars_t VARS;
 
 #define THREAD_FUNCS flowers_thread_funcs
 gl_thread_funcs_t THREAD_FUNCS;
+
+void flowers_OnRenderFrame();
+void flowers_OnSurfaceChanged(int width, int height);
+void flowers_OnSurfaceCreated();
 
 EGLConfig flowers_ChooseConfig(EGLDisplay display, EGLConfig* configArray,
 		int configCount) {
@@ -43,7 +46,7 @@ EGLConfig flowers_ChooseConfig(EGLDisplay display, EGLConfig* configArray,
 	return retConfig;
 }
 
-void GL_EXTERN(flowersConnect(JNIEnv *env)) {
+void FLOWERS_EXTERN(flowersConnect(JNIEnv *env)) {
 	if (VARS.hostCount == 0) {
 		THREAD_FUNCS.chooseConfig = flowers_ChooseConfig;
 		THREAD_FUNCS.onRenderFrame = flowers_OnRenderFrame;
@@ -54,7 +57,7 @@ void GL_EXTERN(flowersConnect(JNIEnv *env)) {
 	++VARS.hostCount;
 }
 
-void GL_EXTERN(flowersDisconnect(JNIEnv *env)) {
+void FLOWERS_EXTERN(flowersDisconnect(JNIEnv *env)) {
 	if (VARS.hostCount == 1) {
 		memset(&VARS, 0, sizeof VARS);
 		gl_ThreadDestroy();
@@ -64,7 +67,7 @@ void GL_EXTERN(flowersDisconnect(JNIEnv *env)) {
 	}
 }
 
-void GL_EXTERN(flowersSetPaused(JNIEnv *env, jobject obj, jboolean paused)) {
+void FLOWERS_EXTERN(flowersSetPaused(JNIEnv *env, jobject obj, jboolean paused)) {
 	if (paused) {
 		gl_ThreadSetPaused(GL_THREAD_TRUE);
 	} else {
@@ -72,7 +75,7 @@ void GL_EXTERN(flowersSetPaused(JNIEnv *env, jobject obj, jboolean paused)) {
 	}
 }
 
-void GL_EXTERN(flowersSetSurface(JNIEnv *env, jobject obj, jobject surface)) {
+void FLOWERS_EXTERN(flowersSetSurface(JNIEnv *env, jobject obj, jobject surface)) {
 	if (surface) {
 		gl_ThreadSetWindow(ANativeWindow_fromSurface(env, surface));
 	} else {
@@ -80,6 +83,6 @@ void GL_EXTERN(flowersSetSurface(JNIEnv *env, jobject obj, jobject surface)) {
 	}
 }
 
-void GL_EXTERN(flowersSetSurfaceSize(JNIEnv *env, jobject obj, jint width, jint height)) {
+void FLOWERS_EXTERN(flowersSetSurfaceSize(JNIEnv *env, jobject obj, jint width, jint height)) {
 	gl_ThreadSetWindowSize(width, height);
 }
