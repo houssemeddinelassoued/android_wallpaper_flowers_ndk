@@ -42,7 +42,14 @@ void gl_ThreadSetWindow(ANativeWindow* window);
 // Sets new native window size.
 void gl_ThreadSetWindowSize(int width, int height);
 
+// Locks render thread for communicating with it safely. You
+// have to call gl_ThreadUnlock after you're done with
+// lock in order to let rendering thread continue.
+// gl_ThreadLock returns only after it has received
+// lock for rendering thread.
 void gl_ThreadLock();
+
+// Releases render thread lock.
 void gl_ThreadUnlock();
 
 #endif
