@@ -1,7 +1,6 @@
 #include <jni.h>
 #include <stdlib.h>
 #include <android/native_window_jni.h>
-#include "gl_defs.h"
 #include "gl_thread.h"
 #include "flowers.h"
 

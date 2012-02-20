@@ -1,7 +1,5 @@
-#ifndef GL_DEFS_H__
-#define GL_DEFS_H__
-
-#include <EGL/egl.h>
+#ifndef LOG_H__
+#define LOG_H__
 
 #if 1
 #include <android/log.h>
@@ -9,9 +7,5 @@
 #else
 #define LOGD(...)
 #endif
-
-typedef unsigned char bool_t;
-#define TRUE   1
-#define FALSE  0
 
 #endif

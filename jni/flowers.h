@@ -3,7 +3,8 @@
 
 #include <EGL/egl.h>
 
-EGLConfig flowers_ChooseConfig(EGLDisplay eglDisplay, EGLConfig* configArray, int configCount);
+EGLConfig flowers_ChooseConfig(EGLDisplay display, EGLConfig* configArray,
+		int configCount);
 void flowers_OnRenderFrame();
 void flowers_OnSurfaceChanged(int width, int height);
 void flowers_OnSurfaceCreated();

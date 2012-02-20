@@ -1,7 +1,7 @@
 #include <pthread.h>
 #include <android/native_window.h>
-#include "gl_defs.h"
 #include "gl_thread.h"
+#include "log.h"
 
 #define VARS gl_thread_vars
 typedef struct {
@@ -65,7 +65,8 @@ bool_t gl_ContextCreate() {
 		return FALSE;
 	}
 
-	EGL_VARS.config = EGL_VARS.chooseConfig(EGL_VARS.display, configs, numConfigs);
+	EGL_VARS.config = EGL_VARS.chooseConfig(EGL_VARS.display, configs,
+			numConfigs);
 	free(configs);
 
 	if (EGL_VARS.config == NULL) {
@@ -73,8 +74,8 @@ bool_t gl_ContextCreate() {
 	}
 
 	EGLint contextAttrs[] = { EGL_CONTEXT_CLIENT_VERSION, 2, EGL_NONE };
-	EGL_VARS.context = eglCreateContext(EGL_VARS.display, EGL_VARS.config, EGL_NO_CONTEXT,
-			contextAttrs);
+	EGL_VARS.context = eglCreateContext(EGL_VARS.display, EGL_VARS.config,
+			EGL_NO_CONTEXT, contextAttrs);
 	if (EGL_VARS.context == EGL_NO_CONTEXT) {
 		return FALSE;
 	}
@@ -117,16 +118,16 @@ bool_t gl_SurfaceCreate() {
 	}
 
 	// Try to create new surface.
-	EGL_VARS.surface = eglCreateWindowSurface(EGL_VARS.display,
-			EGL_VARS.config, VARS.window, NULL);
+	EGL_VARS.surface = eglCreateWindowSurface(EGL_VARS.display, EGL_VARS.config,
+			VARS.window, NULL);
 
 	// If creation failed.
 	if (EGL_VARS.surface == EGL_NO_SURFACE) {
 		return FALSE;
 	}
 
-	if (eglMakeCurrent(EGL_VARS.display, EGL_VARS.surface,
-			EGL_VARS.surface, EGL_VARS.context) != EGL_TRUE) {
+	if (eglMakeCurrent(EGL_VARS.display, EGL_VARS.surface, EGL_VARS.surface,
+			EGL_VARS.context) != EGL_TRUE) {
 		return FALSE;
 	}
 
@@ -135,8 +136,7 @@ bool_t gl_SurfaceCreate() {
 
 void gl_SurfaceRelease() {
 	// If we have reasonable variables.
-	if (EGL_VARS.display != EGL_NO_DISPLAY
-			&& EGL_VARS.surface != EGL_NO_SURFACE) {
+	if (EGL_VARS.display != EGL_NO_DISPLAY && EGL_VARS.surface != EGL_NO_SURFACE) {
 		eglMakeCurrent(EGL_VARS.display, EGL_NO_SURFACE, EGL_NO_SURFACE,
 				EGL_NO_DISPLAY);
 		eglDestroySurface(EGL_VARS.display, EGL_VARS.surface);
