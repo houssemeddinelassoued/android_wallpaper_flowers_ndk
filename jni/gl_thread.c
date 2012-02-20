@@ -201,6 +201,7 @@ void* gl_Thread(void *startParams) {
 		while (!GLOBALS.threadExit) {
 			// If we're asked to pause, release EGL context.
 			if (GLOBALS.threadPause && hasContext) {
+				gl_SurfaceRelease(&egl);
 				gl_ContextRelease(&egl);
 				hasContext = GL_THREAD_FALSE;
 				hasSurface = GL_THREAD_FALSE;
@@ -216,10 +217,16 @@ void* gl_Thread(void *startParams) {
 			// If we're asked to continue, recreate EGL context and surface.
 			if (!GLOBALS.threadPause && !hasContext) {
 				hasContext = gl_ContextCreate(&egl, funcs->chooseConfig);
+				if (!hasContext) {
+					LOGD("gl_Thread", "gl_ContextCreate failed");
+				}
 			}
 			if (!GLOBALS.threadPause && hasContext && !hasSurface) {
 				hasSurface = gl_SurfaceCreate(&egl, GLOBALS.window);
 				notifySurfaceCreated = hasSurface;
+				if (!hasSurface) {
+					LOGD("gl_Thread", "gl_SurfaceCreate failed");
+				}
 			}
 			// If there's windowSizeChanged pending
 			// update internal window size.
@@ -266,7 +273,8 @@ void* gl_Thread(void *startParams) {
 	}
 
 	// Once we get out of rendering loop
-	// release EGL context.
+	// release EGL surface and context.
+	gl_SurfaceRelease(&egl);
 	gl_ContextRelease(&egl);
 
 	LOGD("gl_Thread", "exit");
