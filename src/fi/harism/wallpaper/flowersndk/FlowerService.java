@@ -19,7 +19,6 @@ package fi.harism.wallpaper.flowersndk;
 import android.content.SharedPreferences;
 import android.preference.PreferenceManager;
 import android.service.wallpaper.WallpaperService;
-import android.util.Log;
 import android.view.Surface;
 import android.view.SurfaceHolder;
 
@@ -32,15 +31,17 @@ public final class FlowerService extends WallpaperService {
 		System.loadLibrary("flowers-jni");
 	}
 
-	public native boolean glInit();
+	public native void flowersConnect();
 
-	public native void glDestroy();
+	public native void flowersDisconnect();
 
-	public native void glStart(Surface surface);
+	public native void flowersResume();
 
-	public native void glStop();
+	public native void flowersPause();
 
-	public native void glSetSize(int width, int height);
+	public native void flowersSetSurface(Surface surface);
+	
+	public native void flowersSetSurfaceSize(int width, int height);
 
 	@Override
 	public Engine onCreateEngine() {
@@ -68,17 +69,15 @@ public final class FlowerService extends WallpaperService {
 					.getDefaultSharedPreferences(FlowerService.this);
 			mPreferences.registerOnSharedPreferenceChangeListener(this);
 
-			if (!glInit()) {
-				Log.d("FLOWERS_JAVA", "glCreate() failed");
-			}
+			flowersConnect();
 		}
 
 		@Override
 		public void onDestroy() {
 			super.onDestroy();
-			glDestroy();
 			mPreferences.unregisterOnSharedPreferenceChangeListener(this);
 			mPreferences = null;
+			flowersDisconnect();
 		}
 
 		@Override
@@ -98,10 +97,11 @@ public final class FlowerService extends WallpaperService {
 		public void onVisibilityChanged(boolean visible) {
 			super.onVisibilityChanged(visible);
 			if (visible) {
-				glStart(getSurfaceHolder().getSurface());
-				glSetSize(mWidth, mHeight);
+				flowersSetSurface(getSurfaceHolder().getSurface());
+				flowersSetSurfaceSize(mWidth, mHeight);
+				flowersResume();
 			} else {
-				glStop();
+				flowersPause();
 			}
 		}
 
@@ -110,17 +110,17 @@ public final class FlowerService extends WallpaperService {
 				int width, int height) {
 			mWidth = width;
 			mHeight = height;
-			glSetSize(width, height);
+			flowersSetSurfaceSize(width, height);
 		}
 
 		@Override
 		public void onSurfaceCreated(SurfaceHolder holder) {
-			glStart(holder.getSurface());
+			flowersSetSurface(holder.getSurface());
 		}
 
 		@Override
 		public void onSurfaceDestroyed(SurfaceHolder holder) {
-			glStop();
+			flowersSetSurface(null);
 		}
 
 	}
