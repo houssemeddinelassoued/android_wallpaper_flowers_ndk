@@ -27,18 +27,44 @@ import android.view.SurfaceHolder;
  */
 public final class FlowerService extends WallpaperService {
 
+	/**
+	 * Load JNI library.
+	 */
 	static {
 		System.loadLibrary("flowers-jni");
 	}
 
+	/**
+	 * Connects to underlying rendering thread. This method should be called
+	 * only once when class is created. And there should be same amount of calls
+	 * to flowersDisconnects to enable rendering thread to be destroyed.
+	 */
 	public native void flowersConnect();
 
+	/**
+	 * Disconnects from rendering thread. Once there are no more connections
+	 * rendering thread is quietly killed. This method should be called once
+	 * using Object is about to be destroyed.
+	 */
 	public native void flowersDisconnect();
 
+	/**
+	 * Sets rendering thread to paused/resumed state. When paused underlying EGL
+	 * context is destroyed and is brought back once resumed.
+	 */
 	public native void flowersSetPaused(boolean paused);
 
+	/**
+	 * Sets new surface for rendering to take place to. Calling this method
+	 * resets surface size to zeros and should always be followed by a call to
+	 * flowersSetSurfaceSize. Using null parameter current surface will be
+	 * released.
+	 */
 	public native void flowersSetSurface(Surface surface);
 
+	/**
+	 * Sets new surface size for rendering.
+	 */
 	public native void flowersSetSurfaceSize(int width, int height);
 
 	@Override
@@ -52,7 +78,9 @@ public final class FlowerService extends WallpaperService {
 	private final class WallpaperEngine extends Engine implements
 			SharedPreferences.OnSharedPreferenceChangeListener {
 
+		// Preferences instance.
 		private SharedPreferences mPreferences;
+		// Surface dimensions.
 		private int mWidth, mHeight;
 
 		@Override
@@ -92,31 +120,39 @@ public final class FlowerService extends WallpaperService {
 		}
 
 		@Override
-		public void onVisibilityChanged(boolean visible) {
-			super.onVisibilityChanged(visible);
-			if (visible) {
-				flowersSetSurface(getSurfaceHolder().getSurface());
-				flowersSetSurfaceSize(mWidth, mHeight);
-			}
-			flowersSetPaused(!visible);
-		}
-
-		@Override
 		public void onSurfaceChanged(SurfaceHolder holder, int format,
 				int width, int height) {
+			// Store surface dimensions.
 			mWidth = width;
 			mHeight = height;
+			// Update surface size.
 			flowersSetSurfaceSize(width, height);
 		}
 
 		@Override
 		public void onSurfaceCreated(SurfaceHolder holder) {
+			// Set new surface.
 			flowersSetSurface(holder.getSurface());
 		}
 
 		@Override
 		public void onSurfaceDestroyed(SurfaceHolder holder) {
+			// Release surface.
 			flowersSetSurface(null);
+		}
+
+		@Override
+		public void onVisibilityChanged(boolean visible) {
+			super.onVisibilityChanged(visible);
+			// Update renderer paused state.
+			flowersSetPaused(!visible);
+			// In some situations we get here without receiving onSurfaceCreated
+			// etc events. For these situations it's mandatory to set Surface
+			// and its size manually here.
+			if (visible) {
+				flowersSetSurface(getSurfaceHolder().getSurface());
+				flowersSetSurfaceSize(mWidth, mHeight);
+			}
 		}
 
 	}
