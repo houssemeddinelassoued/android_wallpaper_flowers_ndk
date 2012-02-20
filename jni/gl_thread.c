@@ -1,92 +1,226 @@
 #include <pthread.h>
+#include <android/native_window.h>
 #include "gl_defs.h"
 #include "gl_thread.h"
-#include "gl_surface.h"
-#include "gl_context.h"
 
 #define VARS gl_thread_vars
 typedef struct {
-	bool_t bThreadCreated;
-	pthread_t pThread;
-	pthread_mutex_t pMutex;
-	pthread_cond_t pCond;
+	pthread_t thread;
+	pthread_mutex_t mutex;
+	pthread_cond_t cond;
 
-	bool_t bPause;
-	bool_t bExit;
-	bool_t bSurfaceChanged;
+	bool_t threadCreated;
+	bool_t threadPause;
+	bool_t threadExit;
+	bool_t windowChanged;
 
-	gl_egl_vars_t eglVars;
-	ANativeWindow *nativeWin;
-	int surfaceWidth;
-	int surfaceHeight;
+	ANativeWindow *window;
+	int width;
+	int height;
+
 } gl_thread_vars_t;
 gl_thread_vars_t VARS;
 
-void* gl_Thread(void *params) {
-	gl_thread_params_t *thread_params = (gl_thread_params_t*) params;
+#define EGL_VARS gl_thread_egl_vars
+typedef struct {
+	gl_ChooseConfig_t chooseConfig;
+	EGLDisplay display;
+	EGLContext context;
+	EGLConfig config;
+	EGLSurface surface;
+} gl_egl_vars_t;
+gl_egl_vars_t EGL_VARS;
 
-	bool_t createEGL = TRUE;
+bool_t gl_ContextCreate() {
+	if (EGL_VARS.chooseConfig == NULL) {
+		return FALSE;
+	}
+
+	EGL_VARS.display = eglGetDisplay(0);
+	if (EGL_VARS.display == EGL_NO_DISPLAY) {
+		return FALSE;
+	}
+	if (eglInitialize(EGL_VARS.display, NULL, NULL) != EGL_TRUE) {
+		return FALSE;
+	}
+
+	EGLint numConfigs;
+	EGLint configAttrs[] = { EGL_RED_SIZE, 4, EGL_GREEN_SIZE, 4, EGL_BLUE_SIZE,
+			4, EGL_ALPHA_SIZE, 0, EGL_DEPTH_SIZE, 0, EGL_STENCIL_SIZE, 0,
+			EGL_NONE };
+
+	if (eglChooseConfig(EGL_VARS.display, configAttrs, NULL, 0,
+			&numConfigs) != EGL_TRUE) {
+		return FALSE;
+	}
+	if (numConfigs <= 0) {
+		return FALSE;
+	}
+
+	EGLint configsSize = numConfigs;
+	EGLConfig* configs = (EGLConfig*) malloc(configsSize * sizeof(EGLConfig));
+	if (eglChooseConfig(EGL_VARS.display, configAttrs, configs, configsSize,
+			&numConfigs) == EGL_FALSE) {
+		free(configs);
+		return FALSE;
+	}
+
+	EGL_VARS.config = EGL_VARS.chooseConfig(EGL_VARS.display, configs, numConfigs);
+	free(configs);
+
+	if (EGL_VARS.config == NULL) {
+		return FALSE;
+	}
+
+	EGLint contextAttrs[] = { EGL_CONTEXT_CLIENT_VERSION, 2, EGL_NONE };
+	EGL_VARS.context = eglCreateContext(EGL_VARS.display, EGL_VARS.config, EGL_NO_CONTEXT,
+			contextAttrs);
+	if (EGL_VARS.context == EGL_NO_CONTEXT) {
+		return FALSE;
+	}
+
+	EGL_VARS.surface = EGL_NO_SURFACE;
+	return TRUE;
+}
+
+void gl_ContextRelease() {
+	if (EGL_VARS.context != EGL_NO_CONTEXT) {
+		if (eglDestroyContext(EGL_VARS.display, EGL_VARS.context) != EGL_TRUE) {
+		}
+		EGL_VARS.context = EGL_NO_CONTEXT;
+	}
+	if (EGL_VARS.display != EGL_NO_DISPLAY) {
+		if (eglTerminate(EGL_VARS.display) != EGL_TRUE) {
+		}
+		EGL_VARS.display = EGL_NO_DISPLAY;
+	}
+	EGL_VARS.surface = EGL_NO_SURFACE;
+}
+
+bool_t gl_SurfaceCreate() {
+	// First check we have valid values.
+	if (EGL_VARS.display == EGL_NO_DISPLAY) {
+		return FALSE;
+	}
+	if (EGL_VARS.config == NULL) {
+		return FALSE;
+	}
+	if (VARS.window == NULL) {
+		return FALSE;
+	}
+
+	// If we have a surface, release it first.
+	if (EGL_VARS.surface != EGL_NO_SURFACE) {
+		eglMakeCurrent(EGL_VARS.display, EGL_NO_SURFACE, EGL_NO_SURFACE,
+				EGL_NO_DISPLAY);
+		eglDestroySurface(EGL_VARS.display, EGL_VARS.surface);
+	}
+
+	// Try to create new surface.
+	EGL_VARS.surface = eglCreateWindowSurface(EGL_VARS.display,
+			EGL_VARS.config, VARS.window, NULL);
+
+	// If creation failed.
+	if (EGL_VARS.surface == EGL_NO_SURFACE) {
+		return FALSE;
+	}
+
+	if (eglMakeCurrent(EGL_VARS.display, EGL_VARS.surface,
+			EGL_VARS.surface, EGL_VARS.context) != EGL_TRUE) {
+		return FALSE;
+	}
+
+	return TRUE;
+}
+
+void gl_SurfaceRelease() {
+	// If we have reasonable variables.
+	if (EGL_VARS.display != EGL_NO_DISPLAY
+			&& EGL_VARS.surface != EGL_NO_SURFACE) {
+		eglMakeCurrent(EGL_VARS.display, EGL_NO_SURFACE, EGL_NO_SURFACE,
+				EGL_NO_DISPLAY);
+		eglDestroySurface(EGL_VARS.display, EGL_VARS.surface);
+	}
+	// Mark surface as non existent.
+	EGL_VARS.surface = EGL_NO_SURFACE;
+}
+
+void* gl_Thread(void *params) {
+	gl_thread_funcs_t *funcs = (gl_thread_funcs_t*) params;
+	EGL_VARS.chooseConfig = funcs->chooseConfig;
+
+	bool_t createContext = TRUE;
 	bool_t createSurface = TRUE;
 
-	while (!VARS.bExit) {
+	while (!VARS.threadExit) {
 
-		if (VARS.bPause) {
-			gl_SurfaceRelease(&VARS.eglVars);
-			gl_ContextRelease(&VARS.eglVars);
-			createEGL = TRUE;
+		if (VARS.threadPause) {
+			gl_SurfaceRelease(&EGL_VARS);
+			gl_ContextRelease(&EGL_VARS);
+			createContext = TRUE;
 		}
 
-		while (!VARS.bExit) {
-			if (VARS.bSurfaceChanged && VARS.nativeWin == NULL) {
-				VARS.bSurfaceChanged = FALSE;
-				gl_SurfaceRelease(&VARS.eglVars);
+		while (!VARS.threadExit) {
+			if (VARS.windowChanged && VARS.window == NULL) {
+				VARS.windowChanged = FALSE;
+				gl_SurfaceRelease(&EGL_VARS);
 			}
-			if ((VARS.bPause == FALSE)
-					&& (VARS.surfaceWidth > 0 && VARS.surfaceHeight > 0)) {
+			if ((VARS.threadPause == FALSE)
+					&& (VARS.width > 0 && VARS.height > 0)) {
 				break;
 			}
 
 			LOGD("gl_Thread", "wait");
-			pthread_mutex_lock(&VARS.pMutex);
-			pthread_cond_wait(&VARS.pCond, &VARS.pMutex);
-			pthread_mutex_unlock(&VARS.pMutex);
+			pthread_mutex_lock(&VARS.mutex);
+			pthread_cond_wait(&VARS.cond, &VARS.mutex);
+			pthread_mutex_unlock(&VARS.mutex);
 		}
 
-		if (VARS.bExit) {
+		if (VARS.threadExit) {
 			break;
 		}
 
-		createSurface |= VARS.bSurfaceChanged;
-		VARS.bSurfaceChanged = FALSE;
+		createSurface |= VARS.windowChanged;
+		VARS.windowChanged = FALSE;
 
-		if (createEGL) {
-			// Create EGL
-			gl_ContextCreate(&VARS.eglVars, thread_params->gl_ChooseConfig);
-			// Notify renderer
-			createEGL = FALSE;
+		if (createContext) {
+			// Create EGL context
+			if (gl_ContextCreate(&EGL_VARS) != TRUE) {
+				LOGD("gl_Thread", "gl_ContextCreate failed");
+				gl_ContextRelease(&EGL_VARS);
+				continue;
+			}
+			createContext = FALSE;
 			createSurface = TRUE;
 		}
 		if (createSurface) {
 			// Create Surface
-			gl_SurfaceCreate(&VARS.eglVars, VARS.nativeWin);
+			if (gl_SurfaceCreate(&EGL_VARS, VARS.window) != TRUE) {
+				LOGD("gl_Thread", "gl_SurfaceCreate failed");
+				gl_SurfaceRelease(&EGL_VARS);
+				gl_ContextRelease(&EGL_VARS);
+				continue;
+			}
 			// Notify renderer
+			funcs->onSurfaceCreated();
+			funcs->onSurfaceChanged(VARS.width, VARS.height);
 			createSurface = FALSE;
 		}
 
-		if (VARS.surfaceWidth > 0 && VARS.surfaceHeight > 0) {
-			// Do render.
+		if (VARS.width > 0 && VARS.height > 0) {
+			funcs->onRenderFrame();
+			eglSwapBuffers(EGL_VARS.display, EGL_VARS.surface);
 		}
 
-		LOGD("gl_Thread", "execute");
-		sleep(2);
+		sleep(1);
 	}
 
-	gl_SurfaceRelease(&VARS.eglVars);
-	gl_ContextRelease(&VARS.eglVars);
+	gl_SurfaceRelease(&EGL_VARS);
+	gl_ContextRelease(&EGL_VARS);
 
-	if (VARS.nativeWin) {
-		ANativeWindow_release(VARS.nativeWin);
-		VARS.nativeWin = NULL;
+	if (VARS.window) {
+		ANativeWindow_release(VARS.window);
+		VARS.window = NULL;
 	}
 
 	LOGD("gl_Thread", "exit");
@@ -94,70 +228,85 @@ void* gl_Thread(void *params) {
 }
 
 void gl_ThreadNotify() {
-	pthread_cond_signal(&VARS.pCond);
+	pthread_cond_signal(&VARS.cond);
 }
 
-void gl_ThreadCreate(gl_thread_params_t *threadParams) {
-	// If there's thread running, stop it.
-	if (VARS.bThreadCreated) {
-		gl_ThreadDestroy();
-	}
-	// Initialize new thread.
-	VARS.bThreadCreated = TRUE;
-	VARS.bPause = TRUE;
-	pthread_cond_init(&VARS.pCond, NULL);
-	pthread_mutex_init(&VARS.pMutex, NULL);
-	pthread_create(&VARS.pThread, NULL, gl_Thread, threadParams);
-}
-
+// Destroys current thread if there is one. Returns only after thread
+// has exited its execution all resources are freed.
 void gl_ThreadDestroy() {
 	// If there's thread running.
-	if (VARS.bThreadCreated) {
+	if (VARS.threadCreated) {
 		// Mark exit flag.
-		VARS.bExit = TRUE;
+		VARS.threadExit = TRUE;
 		gl_ThreadNotify();
 		// Wait until thread has exited.
-		pthread_join(VARS.pThread, NULL);
+		pthread_join(VARS.thread, NULL);
 		// Release all VARS data.
-		pthread_cond_destroy(&VARS.pCond);
-		pthread_mutex_destroy(&VARS.pMutex);
+		pthread_cond_destroy(&VARS.cond);
+		pthread_mutex_destroy(&VARS.mutex);
 		memset(&VARS, 0, sizeof VARS);
 	}
 }
 
+// Creates a new gl thread. If there is a thread running already it is always
+// stopped before creating a new one. Meaning ultimately that there is exactly
+// one thread running at all times. Thread is initially in paused state.
+void gl_ThreadCreate(gl_thread_funcs_t *threadParams) {
+	// If there's thread running, stop it.
+	if (VARS.threadCreated) {
+		gl_ThreadDestroy();
+	}
+	// Initialize new thread.
+	VARS.threadCreated = TRUE;
+	VARS.threadPause = TRUE;
+	pthread_cond_init(&VARS.cond, NULL);
+	pthread_mutex_init(&VARS.mutex, NULL);
+	pthread_create(&VARS.thread, NULL, gl_Thread, threadParams);
+}
+
+// Sets gl thread paused state. In paused state EGL context is released.
 void gl_ThreadSetPaused(bool_t paused) {
+	LOGD("gl_ThreadSetPaused", "paused=%d", paused);
+
 	// Notify thread about changes.
-	VARS.bPause = paused;
+	VARS.threadPause = paused;
 	gl_ThreadNotify();
 }
 
-void gl_ThreadSetSurface(ANativeWindow* nativeWin) {
+// Sets new native window for creating EGLSurface.
+void gl_ThreadSetWindow(ANativeWindow* window) {
+	LOGD("gl_ThreadSetWindow", "window=%d", window);
+
 	// If we have new nativeWin.
-	if (VARS.nativeWin != nativeWin) {
+	if (VARS.window != window) {
 		// If there is old one, release it first.
-		if (VARS.nativeWin) {
-			ANativeWindow_release(VARS.nativeWin);
+		if (VARS.window) {
+			ANativeWindow_release(VARS.window);
 		}
 		// Store new nativeWin.
-		VARS.nativeWin = nativeWin;
+		VARS.window = window;
 		// Reset dimensions.
-		VARS.surfaceWidth = VARS.surfaceHeight = 0;
+		VARS.width = VARS.height = 0;
 		// Notify thread about changes.
-		VARS.bSurfaceChanged = TRUE;
+		VARS.windowChanged = TRUE;
 		gl_ThreadNotify();
 	}
 	// Else if nativeWin != NULL.
-	else if (nativeWin) {
-		// Release nativeWin instantly.
-		ANativeWindow_release(nativeWin);
+	else if (window) {
+		// Release window instantly.
+		ANativeWindow_release(window);
 	}
 }
 
-void gl_ThreadSetSurfaceSize(int width, int height) {
-	// Store new dimensions.
-	VARS.surfaceWidth = width;
-	VARS.surfaceHeight = height;
-	// Notify thread about changes.
-	VARS.bSurfaceChanged = TRUE;
-	gl_ThreadNotify();
+// Sets new native window size.
+void gl_ThreadSetWindowSize(int width, int height) {
+	LOGD("gl_ThreadSetWindowSize", "w=%d h=%d", width, height);
+	if (VARS.width != width || VARS.height != height) {
+		// Store new dimensions.
+		VARS.width = width;
+		VARS.height = height;
+		// Notify thread about changes.
+		VARS.windowChanged = TRUE;
+		gl_ThreadNotify();
+	}
 }

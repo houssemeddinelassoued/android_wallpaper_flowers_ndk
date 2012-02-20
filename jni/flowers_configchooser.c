@@ -1,5 +1,5 @@
 #include <stdlib.h>
-#include "flowers_configchooser.h"
+#include "flowers.h"
 
 EGLConfig flowers_ChooseConfig(EGLDisplay eglDisplay, EGLConfig* configArray,
 		int configCount) {
