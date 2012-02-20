@@ -2,13 +2,13 @@
 #include <EGL/egl.h>
 #include "gl_surface.h"
 
-bool_t gl_SurfaceCreate(gl_egl_vars_t* eglVars, ANativeWindow* nativeWin) {
+bool_t gl_SurfaceCreate(gl_egl_vars_t* egl, ANativeWindow* nativeWin) {
 
 	// First check we received valid values.
-	if (eglVars->eglDisplay == EGL_NO_DISPLAY) {
+	if (egl->display == EGL_NO_DISPLAY) {
 		return FALSE;
 	}
-	if (eglVars->eglConfig == NULL) {
+	if (egl->config == NULL) {
 		return FALSE;
 	}
 	if (nativeWin == NULL) {
@@ -16,28 +16,35 @@ bool_t gl_SurfaceCreate(gl_egl_vars_t* eglVars, ANativeWindow* nativeWin) {
 	}
 
 	// If we have a surface, release it first.
-	if (eglVars->eglSurface != EGL_NO_SURFACE) {
-		eglDestroySurface(eglVars->eglDisplay, eglVars->eglSurface);
+	if (egl->surface != EGL_NO_SURFACE) {
+		eglDestroySurface(egl->display, egl->surface);
 	}
 
 	// Try to create new surface.
-	eglVars->eglSurface = eglCreateWindowSurface(eglVars->eglDisplay,
-			eglVars->eglConfig, nativeWin, NULL);
+	egl->surface = eglCreateWindowSurface(egl->display,
+			egl->config, nativeWin, NULL);
 
 	// If creation failed.
-	if (eglVars->eglSurface == EGL_NO_SURFACE) {
+	if (egl->surface == EGL_NO_SURFACE) {
+		return FALSE;
+	}
+
+	if (eglMakeCurrent(egl->display, egl->surface,
+			egl->surface, egl->context) != EGL_TRUE) {
 		return FALSE;
 	}
 
 	return TRUE;
 }
 
-void gl_SurfaceRelease(gl_egl_vars_t* eglVars) {
+void gl_SurfaceRelease(gl_egl_vars_t* egl) {
 	// If we have reasonable variables.
-	if (eglVars->eglDisplay != EGL_NO_DISPLAY
-			&& eglVars->eglSurface != EGL_NO_SURFACE) {
-		eglDestroySurface(eglVars->eglDisplay, eglVars->eglSurface);
+	if (egl->display != EGL_NO_DISPLAY
+			&& egl->surface != EGL_NO_SURFACE) {
+		eglMakeCurrent(egl->display, EGL_NO_SURFACE, EGL_NO_SURFACE,
+				EGL_NO_DISPLAY);
+		eglDestroySurface(egl->display, egl->surface);
 	}
 	// Mark surface as non existent.
-	eglVars->eglSurface = EGL_NO_SURFACE;
+	egl->surface = EGL_NO_SURFACE;
 }

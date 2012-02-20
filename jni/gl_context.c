@@ -1,12 +1,16 @@
 #include <stdlib.h>
 #include "gl_context.h"
 
-bool_t gl_ContextCreate(gl_egl_vars_t *eglVars, gl_ChooseConfig_t chooseConfig) {
-	eglVars->eglDisplay = eglGetDisplay(0);
-	if (eglVars->eglDisplay == EGL_NO_DISPLAY) {
+bool_t gl_ContextCreate(gl_egl_vars_t *egl) {
+	if (egl->chooseConfig == NULL) {
 		return FALSE;
 	}
-	if (eglInitialize(eglVars->eglDisplay, NULL, NULL) != EGL_TRUE) {
+
+	egl->display = eglGetDisplay(0);
+	if (egl->display == EGL_NO_DISPLAY) {
+		return FALSE;
+	}
+	if (eglInitialize(egl->display, NULL, NULL) != EGL_TRUE) {
 		return FALSE;
 	}
 
@@ -15,7 +19,7 @@ bool_t gl_ContextCreate(gl_egl_vars_t *eglVars, gl_ChooseConfig_t chooseConfig) 
 			4, EGL_ALPHA_SIZE, 0, EGL_DEPTH_SIZE, 0, EGL_STENCIL_SIZE, 0,
 			EGL_NONE };
 
-	if (eglChooseConfig(eglVars->eglDisplay, configAttrs, NULL, 0,
+	if (eglChooseConfig(egl->display, configAttrs, NULL, 0,
 			&numConfigs) != EGL_TRUE) {
 		return FALSE;
 	}
@@ -25,41 +29,40 @@ bool_t gl_ContextCreate(gl_egl_vars_t *eglVars, gl_ChooseConfig_t chooseConfig) 
 
 	EGLint configsSize = numConfigs;
 	EGLConfig* configs = (EGLConfig*) malloc(configsSize * sizeof(EGLConfig));
-	if (eglChooseConfig(eglVars->eglDisplay, configAttrs, configs, configsSize,
+	if (eglChooseConfig(egl->display, configAttrs, configs, configsSize,
 			&numConfigs) == EGL_FALSE) {
 		free(configs);
 		return FALSE;
 	}
 
-	eglVars->eglConfig = chooseConfig(eglVars->eglDisplay, configs, numConfigs);
+	egl->config = egl->chooseConfig(egl->display, configs, numConfigs);
 	free(configs);
 
-	if (eglVars->eglConfig == NULL) {
+	if (egl->config == NULL) {
 		return FALSE;
 	}
 
 	EGLint contextAttrs[] = { EGL_CONTEXT_CLIENT_VERSION, 2, EGL_NONE };
-	eglVars->eglContext = eglCreateContext(eglVars->eglDisplay,
-			eglVars->eglConfig, EGL_NO_CONTEXT, contextAttrs);
-	if (eglVars->eglContext == EGL_NO_CONTEXT) {
+	egl->context = eglCreateContext(egl->display, egl->config, EGL_NO_CONTEXT,
+			contextAttrs);
+	if (egl->context == EGL_NO_CONTEXT) {
 		return FALSE;
 	}
 
-	eglVars->eglSurface = EGL_NO_SURFACE;
+	egl->surface = EGL_NO_SURFACE;
 	return TRUE;
 }
 
-void gl_ContextRelease(gl_egl_vars_t *eglVars) {
-	if (eglVars->eglContext != EGL_NO_CONTEXT) {
-		if (eglDestroyContext(eglVars->eglDisplay,
-				eglVars->eglContext) != EGL_TRUE) {
+void gl_ContextRelease(gl_egl_vars_t *egl) {
+	if (egl->context != EGL_NO_CONTEXT) {
+		if (eglDestroyContext(egl->display, egl->context) != EGL_TRUE) {
 		}
-		eglVars->eglContext = EGL_NO_CONTEXT;
+		egl->context = EGL_NO_CONTEXT;
 	}
-	if (eglVars->eglDisplay != EGL_NO_DISPLAY) {
-		if (eglTerminate(eglVars->eglDisplay) != EGL_TRUE) {
+	if (egl->display != EGL_NO_DISPLAY) {
+		if (eglTerminate(egl->display) != EGL_TRUE) {
 		}
-		eglVars->eglDisplay = EGL_NO_DISPLAY;
+		egl->display = EGL_NO_DISPLAY;
 	}
-	eglVars->eglSurface = EGL_NO_SURFACE;
+	egl->surface = EGL_NO_SURFACE;
 }
