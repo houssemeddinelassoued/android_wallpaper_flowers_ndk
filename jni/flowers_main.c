@@ -46,6 +46,7 @@ EGLConfig flowers_ChooseConfig(EGLDisplay display, EGLConfig* configArray,
 	int highestSub = 0;
 	EGLConfig retConfig = NULL;
 	for (idx = 0; idx < configCount; ++idx) {
+		// Get config RGBA, depth and stencil sizes.
 		EGLConfig config = configArray[idx];
 		int r = 0, g = 0, b = 0, a = 0, d = 0, s = 0;
 		eglGetConfigAttrib(display, config, EGL_RED_SIZE, &r);
@@ -58,8 +59,8 @@ EGLConfig flowers_ChooseConfig(EGLDisplay display, EGLConfig* configArray,
 		int sum = r + g + b;
 		int sub = a + d + s;
 
-		// We search for highest RGB depth with lowest A, depth and stencil depth.
-		if (sum > highestSum || (sum == highestSum && sub > highestSub)) {
+		// We search for highest RGB size with lowest A, depth and stencil size.
+		if (sum > highestSum || (sum == highestSum && sub < highestSub)) {
 			retConfig = config;
 			highestSum = sum;
 			highestSub = sub;
