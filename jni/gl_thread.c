@@ -4,9 +4,6 @@
 #include "gl_surface.h"
 #include "gl_context.h"
 
-#define LOG_TAG "gl_thread.c"
-#define LOGD(...) GL_LOGD(LOG_TAG, __VA_ARGS__)
-
 #define VARS gl_thread_vars
 typedef struct {
 	bool_t bThreadCreated;
@@ -26,9 +23,6 @@ typedef struct {
 gl_thread_vars_t VARS;
 
 void* gl_Thread(void *params) {
-
-	LOGD("gl_Thread1");
-
 	gl_thread_params_t *thread_params = (gl_thread_params_t*) params;
 
 	bool_t createEGL = TRUE;
@@ -43,10 +37,16 @@ void* gl_Thread(void *params) {
 		}
 
 		while (!VARS.bExit) {
+			if (VARS.bSurfaceChanged && VARS.nativeWin == NULL) {
+				VARS.bSurfaceChanged = FALSE;
+				gl_SurfaceRelease(&VARS.eglVars);
+			}
 			if ((VARS.bPause == FALSE)
 					&& (VARS.surfaceWidth > 0 && VARS.surfaceHeight > 0)) {
 				break;
 			}
+
+			LOGD("gl_Thread", "wait");
 			pthread_mutex_lock(&VARS.pMutex);
 			pthread_cond_wait(&VARS.pCond, &VARS.pMutex);
 			pthread_mutex_unlock(&VARS.pMutex);
@@ -77,33 +77,32 @@ void* gl_Thread(void *params) {
 			// Do render.
 		}
 
-		LOGD("glThread execute");
+		LOGD("gl_Thread", "execute");
 		sleep(2);
 	}
 
 	gl_SurfaceRelease(&VARS.eglVars);
 	gl_ContextRelease(&VARS.eglVars);
-	free(thread_params);
 
 	if (VARS.nativeWin) {
 		ANativeWindow_release(VARS.nativeWin);
 		VARS.nativeWin = NULL;
 	}
 
-	LOGD("glThread exit");
+	LOGD("gl_Thread", "exit");
 	return NULL;
 }
 
 void gl_ThreadNotify() {
-	LOGD("gl_ThreadNotify");
 	pthread_cond_signal(&VARS.pCond);
 }
 
-void gl_ThreadStart(gl_thread_params_t *threadParams) {
-	LOGD("gl_ThreadStart 1");
+void gl_ThreadCreate(gl_thread_params_t *threadParams) {
+	// If there's thread running, stop it.
 	if (VARS.bThreadCreated) {
-		gl_ThreadStop();
-	}LOGD("gl_ThreadStart 2");
+		gl_ThreadDestroy();
+	}
+	// Initialize new thread.
 	VARS.bThreadCreated = TRUE;
 	VARS.bPause = TRUE;
 	pthread_cond_init(&VARS.pCond, NULL);
@@ -111,51 +110,54 @@ void gl_ThreadStart(gl_thread_params_t *threadParams) {
 	pthread_create(&VARS.pThread, NULL, gl_Thread, threadParams);
 }
 
-void gl_ThreadStop() {
-	LOGD("gl_ThreadStop 1");
+void gl_ThreadDestroy() {
+	// If there's thread running.
 	if (VARS.bThreadCreated) {
-		LOGD("gl_ThreadStop 2");
+		// Mark exit flag.
 		VARS.bExit = TRUE;
 		gl_ThreadNotify();
+		// Wait until thread has exited.
 		pthread_join(VARS.pThread, NULL);
+		// Release all VARS data.
 		pthread_cond_destroy(&VARS.pCond);
 		pthread_mutex_destroy(&VARS.pMutex);
 		memset(&VARS, 0, sizeof VARS);
 	}
-	LOGD("gl_ThreadStop 3");
 }
 
-void gl_ThreadPause() {
-	LOGD("gl_ThreadPause");
-	VARS.bPause = TRUE;
-	gl_ThreadNotify();
-}
-
-void gl_ThreadResume() {
-	LOGD("gl_ThreadResume");
-	VARS.bPause = FALSE;
+void gl_ThreadSetPaused(bool_t paused) {
+	// Notify thread about changes.
+	VARS.bPause = paused;
 	gl_ThreadNotify();
 }
 
 void gl_ThreadSetSurface(ANativeWindow* nativeWin) {
-	LOGD("gl_ThreadSetSurface");
+	// If we have new nativeWin.
 	if (VARS.nativeWin != nativeWin) {
+		// If there is old one, release it first.
 		if (VARS.nativeWin) {
 			ANativeWindow_release(VARS.nativeWin);
 		}
+		// Store new nativeWin.
 		VARS.nativeWin = nativeWin;
+		// Reset dimensions.
 		VARS.surfaceWidth = VARS.surfaceHeight = 0;
+		// Notify thread about changes.
 		VARS.bSurfaceChanged = TRUE;
 		gl_ThreadNotify();
-	} else if (nativeWin) {
+	}
+	// Else if nativeWin != NULL.
+	else if (nativeWin) {
+		// Release nativeWin instantly.
 		ANativeWindow_release(nativeWin);
 	}
 }
 
 void gl_ThreadSetSurfaceSize(int width, int height) {
-	LOGD("gl_ThreadSetSurfaceSize");
+	// Store new dimensions.
 	VARS.surfaceWidth = width;
 	VARS.surfaceHeight = height;
+	// Notify thread about changes.
 	VARS.bSurfaceChanged = TRUE;
 	gl_ThreadNotify();
 }

@@ -35,12 +35,10 @@ public final class FlowerService extends WallpaperService {
 
 	public native void flowersDisconnect();
 
-	public native void flowersResume();
-
-	public native void flowersPause();
+	public native void flowersSetPaused(boolean paused);
 
 	public native void flowersSetSurface(Surface surface);
-	
+
 	public native void flowersSetSurfaceSize(int width, int height);
 
 	@Override
@@ -99,10 +97,8 @@ public final class FlowerService extends WallpaperService {
 			if (visible) {
 				flowersSetSurface(getSurfaceHolder().getSurface());
 				flowersSetSurfaceSize(mWidth, mHeight);
-				flowersResume();
-			} else {
-				flowersPause();
 			}
+			flowersSetPaused(!visible);
 		}
 
 		@Override

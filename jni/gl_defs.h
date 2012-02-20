@@ -3,11 +3,11 @@
 
 #include <EGL/egl.h>
 
-#if 1
+#if 0
 #include <android/log.h>
-#define GL_LOGD(tag, ...) __android_log_print(ANDROID_LOG_DEBUG, tag, __VA_ARGS__)
+#define LOGD(tag, ...) __android_log_print(ANDROID_LOG_DEBUG, tag, __VA_ARGS__)
 #else
-#define GL_LOGD(...)
+#define LOGD(...)
 #endif
 
 typedef unsigned char bool_t;
