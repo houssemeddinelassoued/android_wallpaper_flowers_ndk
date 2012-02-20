@@ -33,6 +33,9 @@
 								<option id="org.eclipse.cdt.build.core.settings.holder.incpaths.293425041" name="Include Paths" superClass="org.eclipse.cdt.build.core.settings.holder.incpaths" valueType="includePath">
 									<listOptionValue builtIn="false" value="/Volumes/Talli/Eclipse/android-ndk-r7/platforms/android-9/arch-arm/usr/include"/>
 								</option>
+								<option id="org.eclipse.cdt.build.core.settings.holder.symbols.215469988" superClass="org.eclipse.cdt.build.core.settings.holder.symbols" valueType="definedSymbols">
+									<listOptionValue builtIn="false" value="__ANDROID__=1"/>
+								</option>
 								<inputType id="org.eclipse.cdt.build.core.settings.holder.inType.1641803028" languageId="org.eclipse.cdt.core.gcc" languageName="GNU C" sourceContentType="org.eclipse.cdt.core.cSource,org.eclipse.cdt.core.cHeader" superClass="org.eclipse.cdt.build.core.settings.holder.inType"/>
 							</tool>
 						</toolChain>

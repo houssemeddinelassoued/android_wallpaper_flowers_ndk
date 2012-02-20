@@ -51,7 +51,7 @@ gl_thread_bool_t gl_ContextCreate(gl_thread_egl_t *egl,
 		return GL_THREAD_FALSE;
 	}
 
-	egl->display = eglGetDisplay(0);
+	egl->display = eglGetDisplay(EGL_DEFAULT_DISPLAY);
 	if (egl->display == EGL_NO_DISPLAY) {
 		return GL_THREAD_FALSE;
 	}
