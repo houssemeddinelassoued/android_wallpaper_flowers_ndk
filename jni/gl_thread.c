@@ -34,8 +34,8 @@ typedef struct {
 	gl_thread_bool_t windowSizeChanged;
 
 	ANativeWindow *window;
-	int windowWidth;
-	int windowHeight;
+	int32_t windowWidth;
+	int32_t windowHeight;
 } gl_thread_global_t;
 gl_thread_global_t GLOBALS;
 
@@ -191,6 +191,9 @@ void gl_SurfaceDestroy(gl_thread_egl_t *egl) {
 
 // Main rendering thread function.
 void* gl_Thread(void *startParams) {
+
+	LOGD("gl_Thread", "start");
+
 	gl_thread_funcs_t *funcs = startParams;
 	gl_thread_egl_t egl;
 
@@ -260,6 +263,8 @@ void* gl_Thread(void *startParams) {
 				break;
 			}
 
+			LOGD("gl_Thread", "wait");
+
 			// Releases mutex and waits for cond to be triggered.
 			// If there are pending mutex lock requests they ought
 			// to be handled before this function returns and
@@ -308,6 +313,13 @@ void* gl_Thread(void *startParams) {
 	return NULL;
 }
 
+gl_thread_bool_t gl_ThreadRunning() {
+	if (GLOBALS.threadCreated && !GLOBALS.threadExit) {
+		return GL_THREAD_TRUE;
+	}
+	return GL_THREAD_FALSE;
+}
+
 void gl_ThreadCreate(gl_thread_funcs_t *threadFuncs) {
 	// If there's thread running, stop it.
 	if (GLOBALS.threadCreated) {
@@ -325,13 +337,22 @@ void gl_ThreadCreate(gl_thread_funcs_t *threadFuncs) {
 void gl_ThreadDestroy() {
 	// If there's thread running.
 	if (GLOBALS.threadCreated) {
-		gl_ThreadLock();
 		// Mark exit flag.
 		GLOBALS.threadExit = GL_THREAD_TRUE;
-		gl_ThreadUnlock();
-
+		// Notify thread.
+		pthread_cond_signal(&GLOBALS.cond);
 		// Wait until thread has exited.
 		pthread_join(GLOBALS.thread, NULL);
+
+		// If there are pending mutex locks let
+		// them execute before destroying it.
+		// This is needed because otherwise
+		// pthread_mutex_destroy will fail.
+		pthread_mutex_lock(&GLOBALS.mutex);
+		while (GLOBALS.mutexCounter > 0) {
+			pthread_cond_wait(&GLOBALS.cond, &GLOBALS.mutex);
+		}
+		pthread_mutex_unlock(&GLOBALS.mutex);
 
 		// Release all GLOBALS data.
 		pthread_cond_destroy(&GLOBALS.cond);
@@ -345,16 +366,25 @@ void gl_ThreadDestroy() {
 }
 
 void gl_ThreadSetPaused(gl_thread_bool_t paused) {
-	// Acquire thread lock.
-	gl_ThreadLock();
-	// Set thread paused flag.
-	GLOBALS.threadPause = paused;
-	// Release thread lock.
-	gl_ThreadUnlock();
+	if (gl_ThreadRunning()) {
+		// Acquire thread lock.
+		gl_ThreadLock();
+		// Set thread paused flag.
+		GLOBALS.threadPause = paused;
+		// Release thread lock.
+		gl_ThreadUnlock();
+	}
 }
 
 // Sets new native window for creating EGLSurface.
 void gl_ThreadSetWindow(ANativeWindow* window) {
+	// We accept new window only when rendering
+	// thread is active. Otherwise we can't promise
+	// it gets released as expected.
+	if (!gl_ThreadRunning()) {
+		ANativeWindow_release(window);
+		return;
+	}
 	// Acquire thread lock.
 	gl_ThreadLock();
 	// If we have new nativeWin.
@@ -379,7 +409,12 @@ void gl_ThreadSetWindow(ANativeWindow* window) {
 	gl_ThreadUnlock();
 }
 
-void gl_ThreadSetWindowSize(int width, int height) {
+void gl_ThreadSetWindowSize(int32_t width, int32_t height) {
+	// We accept new size only when rendering
+	// thread is running.
+	if (!gl_ThreadRunning()) {
+		return;
+	}
 	// Acquire thread lock.
 	gl_ThreadLock();
 	// If we received new size.
@@ -395,12 +430,16 @@ void gl_ThreadSetWindowSize(int width, int height) {
 }
 
 void gl_ThreadLock() {
-	++GLOBALS.mutexCounter;
-	pthread_mutex_lock(&GLOBALS.mutex);
+	if (gl_ThreadRunning()) {
+		++GLOBALS.mutexCounter;
+		pthread_mutex_lock(&GLOBALS.mutex);
+	}
 }
 
 void gl_ThreadUnlock() {
-	--GLOBALS.mutexCounter;
-	pthread_mutex_unlock(&GLOBALS.mutex);
-	pthread_cond_signal(&GLOBALS.cond);
+	if (gl_ThreadRunning()) {
+		--GLOBALS.mutexCounter;
+		pthread_mutex_unlock(&GLOBALS.mutex);
+		pthread_cond_signal(&GLOBALS.cond);
+	}
 }

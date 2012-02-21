@@ -72,7 +72,7 @@ void gl_ThreadSetWindow(ANativeWindow* window);
 /*
  Sets new native window size.
  */
-void gl_ThreadSetWindowSize(int width, int height);
+void gl_ThreadSetWindowSize(int32_t width, int32_t height);
 
 /*
  Locks render thread for communicating with it safely. You
