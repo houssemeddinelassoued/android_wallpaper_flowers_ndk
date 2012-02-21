@@ -19,8 +19,8 @@ GLuint gl_ShaderCreate(GLenum type, const GLchar *source) {
 	return shader;
 }
 
-void gl_ProgramCreate(gl_utils_program_t *shader,
-		const GLchar *vertexShader, const GLchar *fragmentShader) {
+void gl_ProgramCreate(gl_utils_program_t *shader, const GLchar *vertexShader,
+		const GLchar *fragmentShader) {
 	shader->shader_v = gl_ShaderCreate(GL_VERTEX_SHADER, vertexShader);
 	shader->shader_f = gl_ShaderCreate(GL_FRAGMENT_SHADER, fragmentShader);
 	shader->program = glCreateProgram();
@@ -45,11 +45,10 @@ void gl_ProgramRelease(gl_utils_program_t *shader) {
 	memset(shader, 0, sizeof *shader);
 }
 
-GLint gl_ProgramGetLocation(const gl_utils_program_t *shader,
-		const GLchar *name) {
-	GLint location = glGetUniformLocation(shader->program, name);
+GLint gl_ProgramGetLocation(const GLuint program, const GLchar *name) {
+	GLint location = glGetUniformLocation(program, name);
 	if (location == -1) {
-		location = glGetAttribLocation(shader->program, name);
+		location = glGetAttribLocation(program, name);
 	}
 	return location;
 }

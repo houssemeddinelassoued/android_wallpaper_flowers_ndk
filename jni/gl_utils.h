@@ -9,12 +9,11 @@ typedef struct {
 	GLuint shader_f;
 } gl_utils_program_t;
 
-
 void gl_ProgramCreate(gl_utils_program_t *program, const GLchar *vertexShader,
 		const GLchar *fragmentShader);
 
 void gl_ProgramRelease(gl_utils_program_t *program);
 
-GLint gl_ProgramGetLocation(const gl_utils_program_t *program, const GLchar *name);
+GLint gl_ProgramGetLocation(const GLuint program, const GLchar *name);
 
 #endif
