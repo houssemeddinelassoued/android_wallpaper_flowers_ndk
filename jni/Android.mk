@@ -7,7 +7,8 @@ LOCAL_CFLAGS    += -Wall -Werror -Wextra
 
 LOCAL_SRC_FILES := flowers_main.c \
                    flowers_renderer.c \
-                   gl_thread.c
+                   gl_thread.c \
+                   gl_utils.c
 
 LOCAL_LDLIBS    := -landroid \
                    -llog \
