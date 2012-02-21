@@ -35,7 +35,7 @@ gl_thread_funcs_t THREAD_FUNCS;
 
 // Render callback prototypes (flowers_renderer.c).
 void flowers_OnRenderFrame();
-void flowers_OnSurfaceChanged(int width, int height);
+void flowers_OnSurfaceChanged(int32_t width, int32_t height);
 void flowers_OnSurfaceCreated();
 
 // EGLConfig chooser implementation.

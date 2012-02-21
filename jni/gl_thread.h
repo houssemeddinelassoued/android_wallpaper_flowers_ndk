@@ -34,7 +34,7 @@ typedef EGLConfig (*gl_ChooseConfig_t)(EGLDisplay display,
 		EGLConfig* configArray, int configCount);
 typedef void (*gl_OnRenderFrame_t)(void);
 typedef void (*gl_OnSurfaceCreated_t)(void);
-typedef void (*gl_OnSurfaceChanged_t)(int width, int height);
+typedef void (*gl_OnSurfaceChanged_t)(int32_t width, int32_t height);
 
 /*
  Callback functions struct definition.
